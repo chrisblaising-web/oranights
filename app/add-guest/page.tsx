@@ -20,18 +20,27 @@ export default function AddGuestPage() {
 
     async function handleSubmit() {
 
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from("guests")
-            .insert([form]);
+            .insert([form])
+            .select();
 
 
         if (error) {
+
+            alert(error.message);
             console.log(error);
+
             return;
         }
 
 
+        console.log("Guest added:", data);
+
+        alert("Guest added successfully");
+
         router.push("/guests");
+
     }
 
 
@@ -89,6 +98,7 @@ export default function AddGuestPage() {
 
 
                 <select
+                    value={form.vip_level}
                     className="w-full bg-zinc-900 p-4 rounded-lg"
                     onChange={(e) => setForm({
                         ...form,
@@ -96,15 +106,15 @@ export default function AddGuestPage() {
                     })}
                 >
 
-                    <option>
+                    <option value="Regular">
                         Regular
                     </option>
 
-                    <option>
+                    <option value="VIP">
                         VIP
                     </option>
 
-                    <option>
+                    <option value="BLACK">
                         BLACK
                     </option>
 
@@ -122,6 +132,7 @@ export default function AddGuestPage() {
 
 
                 <button
+                    type="button"
                     onClick={handleSubmit}
                     className="bg-white text-black px-6 py-3 rounded-lg font-bold"
                 >
