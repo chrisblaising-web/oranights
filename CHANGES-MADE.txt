@@ -1,0 +1,17 @@
+ORA CRM stable version - changes made
+
+1. SMS campaigns are now saved in public.sms_campaigns before sending starts.
+2. Every recipient log stores both campaign_id and guest_id.
+3. Individual/group sends remain linked to each saved guest profile.
+4. Manual-number sends are linked to the campaign but correctly have guest_id = null.
+5. Campaign totals are updated after sending: total, sent, failed, completed status/time.
+6. Guest profiles load SMS history by guest_id and show campaign/audience/delivery errors.
+7. SMS logs on the SMS page include a direct guest-profile link when available.
+8. Twilio status callback route updates queued/sent/delivered/failed statuses.
+9. Dashboard counts all SMS logs and includes queued/accepted/sending as successful pipeline states.
+10. SUPABASE_SMS_CAMPAIGN_LINK.sql adds and indexes the required database links.
+
+Required setup
+- Run the contents of SUPABASE_SMS_CAMPAIGN_LINK.sql in Supabase SQL Editor.
+- Keep SUPABASE_SERVICE_ROLE_KEY in .env.local.
+- For live Twilio delivery updates, set NEXT_PUBLIC_APP_URL to your public HTTPS app URL. Localhost cannot receive Twilio callbacks unless tunneled.

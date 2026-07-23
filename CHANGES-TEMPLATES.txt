@@ -1,0 +1,12 @@
+SMS TEMPLATE FIX
+
+Updated app/sms/page.tsx:
+- Loads active rows from public.sms_templates
+- Shows a Saved SMS Template dropdown
+- Selecting a template fills the SMS message
+- Uses the template campaign name when campaign name is empty
+- Keeps recent SMS history loading from sms_logs
+
+Expected behavior:
+- A newly sent message is inserted in sms_logs and appears immediately after send.
+- The selected guest profile shows the message when sms_logs.guest_id matches that guest.
