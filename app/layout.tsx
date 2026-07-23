@@ -13,8 +13,21 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://oranights.vercel.app"),
   title: "WKND Presents | Ora Nights Guest List",
   description: "Join the official Ora Nights guest list.",
+  openGraph: {
+    title: "WKND Presents | Ora Nights Guest List",
+    description: "Join the official Ora Nights guest list.",
+    url: "/f/ora-night-guest-list",
+    siteName: "WKND Presents",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "WKND Presents | Ora Nights Guest List",
+    description: "Join the official Ora Nights guest list.",
+  },
 };
 
 export default function RootLayout({
