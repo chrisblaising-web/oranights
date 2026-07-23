@@ -20,13 +20,13 @@ type PublicFormField = {
   field_key: string;
   label: string;
   field_type:
-    | "text"
-    | "email"
-    | "phone"
-    | "date"
-    | "textarea"
-    | "select"
-    | "checkbox";
+  | "text"
+  | "email"
+  | "phone"
+  | "date"
+  | "textarea"
+  | "select"
+  | "checkbox";
   placeholder: string | null;
   is_required: boolean;
   options: string[] | null;
@@ -210,7 +210,7 @@ export default function PublicFormPage() {
       if (!response.ok || !result?.success) {
         throw new Error(
           result?.error ||
-            "Your submission could not be saved."
+          "Your submission could not be saved."
         );
       }
 
@@ -218,8 +218,8 @@ export default function PublicFormPage() {
 
       setStatus(
         result.success_message ||
-          form.success_message ||
-          "Thank you. Your submission was received."
+        form.success_message ||
+        "Thank you. Your submission was received."
       );
     } catch (error) {
       setStatus(
@@ -305,7 +305,7 @@ export default function PublicFormPage() {
 
           <div className="p-6 md:p-10">
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500">
-              Campaign Registration
+              Guest list
             </p>
 
             <h1 className="mt-4 text-3xl font-bold md:text-5xl">
@@ -454,7 +454,7 @@ export default function PublicFormPage() {
         </section>
 
         <p className="mt-5 text-center text-xs text-zinc-600">
-          Powered by ORA CRM
+          Powered by ORA  all rights reserved,2024
         </p>
       </div>
     </main>
