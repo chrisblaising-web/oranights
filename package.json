@@ -9,10 +9,15 @@
     "lint": "eslint"
   },
   "dependencies": {
+<<<<<<< HEAD
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.7",
     "libphonenumber-js": "^1.13.9",
     "next": "^16.2.11",
+=======
+    "@supabase/supabase-js": "^2.110.7",
+    "next": "16.2.10",
+>>>>>>> e54d35691c981e006a0e0472c3b7e0afe90ab152
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "twilio": "^6.0.2"

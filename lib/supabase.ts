@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { createBrowserClient } from "@supabase/ssr";
 
 const supabaseUrl =
@@ -15,4 +16,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createBrowserClient(
   supabaseUrl,
   supabaseAnonKey
+=======
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = "https://lgbmlfdnfbotoayffhec.supabase.co";
+
+const supabaseKey = "sb_publishable_V-v7B93s6DIfeIy0cqkOiA_8aHDTLnK";
+
+export const supabase = createClient(
+    supabaseUrl,
+    supabaseKey
+>>>>>>> e54d35691c981e006a0e0472c3b7e0afe90ab152
 );
