@@ -78,6 +78,13 @@ export default function Sidebar() {
                 </Link>
 
                 <Link
+                    href="/host/check-in"
+                    className="block rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-3 font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+                >
+                    ✅ Host Check-In
+                </Link>
+
+                <Link
                     href="/guests"
                     className="block transition hover:text-white/70"
                 >

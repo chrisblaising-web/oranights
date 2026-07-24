@@ -399,6 +399,107 @@ export default function AddGuestPage() {
             invitation_sms_sent: false,
         };
 
+        /*
+         * Prevent duplicate CRM contacts before inserting.
+         * Phone is checked first, then email, then Instagram.
+         */
+        try {
+            if (normalizedPhone) {
+                const {
+                    data: existingByPhone,
+                    error: phoneCheckError,
+                } = await supabase
+                    .from("guests")
+                    .select("id, name")
+                    .eq("phone", normalizedPhone)
+                    .limit(1)
+                    .maybeSingle();
+
+                if (phoneCheckError) {
+                    throw phoneCheckError;
+                }
+
+                if (existingByPhone) {
+                    setStatus(
+                        `Duplicate blocked: ${existingByPhone.name || "This guest"} already uses this phone number.`
+                    );
+                    setStatusType("warning");
+                    setSaving(false);
+                    return;
+                }
+            }
+
+            if (guestData.email) {
+                const {
+                    data: existingByEmail,
+                    error: emailCheckError,
+                } = await supabase
+                    .from("guests")
+                    .select("id, name")
+                    .ilike("email", guestData.email)
+                    .limit(1)
+                    .maybeSingle();
+
+                if (emailCheckError) {
+                    throw emailCheckError;
+                }
+
+                if (existingByEmail) {
+                    setStatus(
+                        `Duplicate blocked: ${existingByEmail.name || "This guest"} already uses this email address.`
+                    );
+                    setStatusType("warning");
+                    setSaving(false);
+                    return;
+                }
+            }
+
+            if (guestData.instagram) {
+                const {
+                    data: existingByInstagram,
+                    error: instagramCheckError,
+                } = await supabase
+                    .from("guests")
+                    .select("id, name")
+                    .ilike(
+                        "instagram",
+                        guestData.instagram
+                    )
+                    .limit(1)
+                    .maybeSingle();
+
+                if (instagramCheckError) {
+                    throw instagramCheckError;
+                }
+
+                if (existingByInstagram) {
+                    setStatus(
+                        `Duplicate blocked: ${existingByInstagram.name || "This guest"} already uses this Instagram account.`
+                    );
+                    setStatusType("warning");
+                    setSaving(false);
+                    return;
+                }
+            }
+        } catch (duplicateCheckError) {
+            const duplicateMessage =
+                duplicateCheckError instanceof Error
+                    ? duplicateCheckError.message
+                    : "Unknown duplicate-check error";
+
+            console.error(
+                "Duplicate guest check failed:",
+                duplicateCheckError
+            );
+
+            setStatus(
+                `Could not verify duplicates: ${duplicateMessage}`
+            );
+            setStatusType("error");
+            setSaving(false);
+            return;
+        }
+
         const { data, error } = await supabase
             .from("guests")
             .insert([guestData])

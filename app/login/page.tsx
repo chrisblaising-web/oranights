@@ -13,6 +13,13 @@ import {
 } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 
+type UserRole = "admin" | "host";
+
+type UserProfile = {
+  role: UserRole;
+  is_active: boolean;
+};
+
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -72,22 +79,110 @@ function LoginContent() {
   const [status, setStatus] =
     useState("");
 
+  async function getDestination(
+    userId: string
+  ) {
+    const {
+      data,
+      error,
+    } = await supabase
+      .from("user_profiles")
+      .select("role, is_active")
+      .eq("id", userId)
+      .maybeSingle<UserProfile>();
+
+    if (error) {
+      console.error(
+        "Profile lookup error:",
+        error
+      );
+
+      throw new Error(
+        "Your account permissions could not be verified."
+      );
+    }
+
+    if (!data) {
+      throw new Error(
+        "Your account does not have an assigned CRM role."
+      );
+    }
+
+    if (!data.is_active) {
+      await supabase.auth.signOut();
+
+      throw new Error(
+        "Your account has been disabled."
+      );
+    }
+
+    if (data.role === "host") {
+      return "/host/check-in";
+    }
+
+    if (data.role === "admin") {
+      return redirectPath;
+    }
+
+    throw new Error(
+      "Your account role is not recognized."
+    );
+  }
+
   useEffect(() => {
+    let cancelled = false;
+
     async function checkSession() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
 
-      if (user) {
-        router.replace(redirectPath);
-        router.refresh();
-        return;
+        if (error) {
+          throw new Error(
+            error.message
+          );
+        }
+
+        if (!user) {
+          if (!cancelled) {
+            setCheckingSession(false);
+          }
+
+          return;
+        }
+
+        const destination =
+          await getDestination(user.id);
+
+        if (!cancelled) {
+          router.replace(destination);
+          router.refresh();
+        }
+      } catch (error) {
+        console.error(
+          "Session check error:",
+          error
+        );
+
+        if (!cancelled) {
+          setStatus(
+            error instanceof Error
+              ? error.message
+              : "Unable to verify your login session."
+          );
+
+          setCheckingSession(false);
+        }
       }
-
-      setCheckingSession(false);
     }
 
     void checkSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     redirectPath,
     router,
@@ -148,7 +243,12 @@ function LoginContent() {
         );
       }
 
-      router.replace(redirectPath);
+      const destination =
+        await getDestination(
+          data.user.id
+        );
+
+      router.replace(destination);
       router.refresh();
     } catch (error) {
       console.error(
@@ -189,8 +289,8 @@ function LoginContent() {
           </h1>
 
           <p className="mt-2 text-sm text-zinc-400">
-            Sign in to manage guests,
-            forms, and SMS campaigns.
+            Sign in to access your
+            authorized workspace.
           </p>
         </div>
 
@@ -218,6 +318,8 @@ function LoginContent() {
               id="email"
               type="email"
               autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
               value={email}
               onChange={(event) =>
                 setEmail(
@@ -226,7 +328,7 @@ function LoginContent() {
               }
               placeholder="you@example.com"
               disabled={loading}
-              className="w-full rounded-xl border border-white/10 bg-black p-4 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60"
+              className="h-14 w-full rounded-xl border border-white/10 bg-black px-4 text-base outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60"
             />
           </div>
 
@@ -250,14 +352,14 @@ function LoginContent() {
               }
               placeholder="Enter your password"
               disabled={loading}
-              className="w-full rounded-xl border border-white/10 bg-black p-4 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60"
+              className="h-14 w-full rounded-xl border border-white/10 bg-black px-4 text-base outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-white px-6 py-4 font-bold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-14 w-full rounded-xl bg-white px-6 text-base font-bold text-black transition hover:bg-zinc-200 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading
               ? "Signing in..."

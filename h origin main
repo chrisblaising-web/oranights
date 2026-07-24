@@ -1,0 +1,108 @@
+[33mcommit 4c49b07b43597225065c57b1f7895050bbd984a8[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: chrisblaising-web <chrisblaising@gmail.com>
+Date:   Fri Jul 24 11:59:56 2026 -0400
+
+    Add admin new client SMS notification
+
+[1mdiff --git a/app/api/admin/new-client-notification/route.ts b/app/api/admin/new-client-notification/route.ts[m
+[1mnew file mode 100644[m
+[1mindex 0000000..fa8d6fd[m
+[1m--- /dev/null[m
+[1m+++ b/app/api/admin/new-client-notification/route.ts[m
+[36m@@ -0,0 +1,95 @@[m
+[32m+[m[32mimport { NextResponse } from "next/server";[m
+[32m+[m[32mimport twilio from "twilio";[m
+[32m+[m
+[32m+[m[32mtype NotificationPayload = {[m
+[32m+[m[32m  name?: string;[m
+[32m+[m[32m  phone?: string;[m
+[32m+[m[32m  instagram?: string;[m
+[32m+[m[32m  vipLevel?: string;[m
+[32m+[m[32m};[m
+[32m+[m
+[32m+[m[32mexport const runtime = "nodejs";[m
+[32m+[m[32mexport const dynamic = "force-dynamic";[m
+[32m+[m
+[32m+[m[32mexport async function POST(request: Request) {[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    const payload =[m
+[32m+[m[32m      (await request.json()) as NotificationPayload;[m
+[32m+[m
+[32m+[m[32m    const adminPhone =[m
+[32m+[m[32m      process.env.ADMIN_NOTIFICATION_PHONE;[m
+[32m+[m
+[32m+[m[32m    const accountSid =[m
+[32m+[m[32m      process.env.TWILIO_ACCOUNT_SID;[m
+[32m+[m
+[32m+[m[32m    const authToken =[m
+[32m+[m[32m      process.env.TWILIO_AUTH_TOKEN;[m
+[32m+[m
+[32m+[m[32m    const twilioPhone =[m
+[32m+[m[32m      process.env.TWILIO_PHONE_NUMBER;[m
+[32m+[m
+[32m+[m[32m    if ([m
+[32m+[m[32m      !adminPhone ||[m
+[32m+[m[32m      !accountSid ||[m
+[32m+[m[32m      !authToken ||[m
+[32m+[m[32m      !twilioPhone[m
+[32m+[m[32m    ) {[m
+[32m+[m[32m      return NextResponse.json([m
+[32m+[m[32m        {[m
+[32m+[m[32m          success: false,[m
+[32m+[m[32m          error:[m
+[32m+[m[32m            "Admin notification environment variables are missing.",[m
+[32m+[m[32m        },[m
+[32m+[m[32m        {[m
+[32m+[m[32m          status: 500,[m
+[32m+[m[32m        }[m
+[32m+[m[32m      );[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    const client = twilio([m
+[32m+[m[32m      accountSid,[m
+[32m+[m[32m      authToken[m
+[32m+[m[32m    );[m
+[32m+[m
+[32m+[m[32m    const message = [[m
+[32m+[m[32m      "New client added 🎉",[m
+[32m+[m[32m      `Name: ${payload.name || "Not provided"}`,[m
+[32m+[m[32m      `Phone: ${payload.phone || "Not provided"}`,[m
+[32m+[m[32m      `Instagram: ${payload.instagram || "Not provided"}`,[m
+[32m+[m[32m      `VIP: ${payload.vipLevel || "Regular"}`,[m
+[32m+[m[32m    ].join("\n");[m
+[32m+[m
+[32m+[m[32m    const sms =[m
+[32m+[m[32m      await client.messages.create({[m
+[32m+[m[32m        body: message,[m
+[32m+[m[32m        from: twilioPhone,[m
+[32m+[m[32m        to: adminPhone,[m
+[32m+[m[32m      });[m
+[32m+[m
+[32m+[m[32m    return NextResponse.json({[m
+[32m+[m[32m      success: true,[m
+[32m+[m[32m      sid: sms.sid,[m
+[32m+[m[32m      status: sms.status,[m
+[32m+[m[32m    });[m
+[32m+[m[32m  } catch (error) {[m
+[32m+[m[32m    const message =[m
+[32m+[m[32m      error instanceof Error[m
+[32m+[m[32m        ? error.message[m
+[32m+[m[32m        : "Notification failed.";[m
+[32m+[m
+[32m+[m[32m    console.error([m
+[32m+[m[32m      "New client notification error:",[m
+[32m+[m[32m      error[m
+[32m+[m[32m    );[m
+[32m+[m
+[32m+[m[32m    return NextResponse.json([m
+[32m+[m[32m      {[m
+[32m+[m[32m        success: false,[m
+[32m+[m[32m        error: message,[m
+[32m+[m[32m      },[m
+[32m+[m[32m      {[m
+[32m+[m[32m        status: 500,[m
+[32m+[m[32m      }[m
+[32m+[m[32m    );[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
