@@ -128,7 +128,7 @@ function formDataToObject(formData: FormData) {
     return params;
 }
 
-function isValidTwilioRequest(
+function validateTwilioWebhook(
     request: NextRequest,
     params: Record<string, string>
 ) {
@@ -141,17 +141,64 @@ function isValidTwilioRequest(
             ?.trim();
 
     if (!authToken || !signature) {
-        return false;
+        return {
+            valid: false,
+            matchedUrl: null as string | null,
+            checkedUrls: [] as string[],
+        };
     }
 
-    const webhookUrl = getWebhookUrl(request);
+    const configuredUrl =
+        process.env.TWILIO_INBOUND_WEBHOOK_URL?.trim();
 
-    return validateRequest(
-        authToken,
-        signature,
-        webhookUrl,
-        params
+    const forwardedProto =
+        request.headers.get("x-forwarded-proto") ||
+        "https";
+
+    const forwardedHost =
+        request.headers.get("x-forwarded-host") ||
+        request.headers.get("host");
+
+    const forwardedUrl = forwardedHost
+        ? `${forwardedProto}://${forwardedHost}${request.nextUrl.pathname}${request.nextUrl.search}`
+        : null;
+
+    const candidateUrls = Array.from(
+        new Set(
+            [
+                configuredUrl,
+                forwardedUrl,
+                request.url,
+                "https://oranights.vercel.app/api/twilio/inbound",
+            ].filter(
+                (value): value is string =>
+                    Boolean(value)
+            )
+        )
     );
+
+    for (const webhookUrl of candidateUrls) {
+        if (
+            validateRequest(
+                authToken,
+                signature,
+                webhookUrl,
+                params
+            )
+        ) {
+            return {
+                valid: true,
+                matchedUrl: webhookUrl,
+                checkedUrls: candidateUrls,
+            };
+        }
+    }
+
+    return {
+        valid: false,
+        matchedUrl: null,
+        checkedUrls: candidateUrls,
+    };
 }
 
 export async function POST(request: NextRequest) {
@@ -194,14 +241,15 @@ export async function POST(request: NextRequest) {
         const webhookParams =
             formDataToObject(formData);
 
-        const signatureValid = isValidTwilioRequest(
+        const signatureCheck = validateTwilioWebhook(
             request,
             webhookParams
         );
 
         console.log("Inbound Twilio signature check:", {
-            signatureValid,
-            webhookUrl: getWebhookUrl(request),
+            valid: signatureCheck.valid,
+            matchedUrl: signatureCheck.matchedUrl,
+            checkedUrls: signatureCheck.checkedUrls,
             hasSignature: Boolean(
                 request.headers.get("x-twilio-signature")
             ),
@@ -210,12 +258,18 @@ export async function POST(request: NextRequest) {
             ),
         });
 
-        // TEMPORARY DIAGNOSTIC MODE:
-        // Allow the webhook to continue even when signature validation fails.
-        // Restore strict rejection after confirming inbound messages save correctly.
-        if (!signatureValid) {
+        if (!signatureCheck.valid) {
             console.warn(
-                "Inbound SMS signature was invalid, but the request was allowed for testing."
+                "Rejected inbound SMS webhook with invalid Twilio signature.",
+                {
+                    checkedUrls:
+                        signatureCheck.checkedUrls,
+                }
+            );
+
+            return createErrorResponse(
+                "Invalid Twilio signature.",
+                403
             );
         }
 
