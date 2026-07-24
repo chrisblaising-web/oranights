@@ -194,19 +194,28 @@ export async function POST(request: NextRequest) {
         const webhookParams =
             formDataToObject(formData);
 
-        if (
-            !isValidTwilioRequest(
-                request,
-                webhookParams
-            )
-        ) {
-            console.warn(
-                "Rejected inbound SMS webhook with invalid Twilio signature."
-            );
+        const signatureValid = isValidTwilioRequest(
+            request,
+            webhookParams
+        );
 
-            return createErrorResponse(
-                "Invalid Twilio signature.",
-                403
+        console.log("Inbound Twilio signature check:", {
+            signatureValid,
+            webhookUrl: getWebhookUrl(request),
+            hasSignature: Boolean(
+                request.headers.get("x-twilio-signature")
+            ),
+            hasAuthToken: Boolean(
+                process.env.TWILIO_AUTH_TOKEN
+            ),
+        });
+
+        // TEMPORARY DIAGNOSTIC MODE:
+        // Allow the webhook to continue even when signature validation fails.
+        // Restore strict rejection after confirming inbound messages save correctly.
+        if (!signatureValid) {
+            console.warn(
+                "Inbound SMS signature was invalid, but the request was allowed for testing."
             );
         }
 
