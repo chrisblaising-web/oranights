@@ -138,6 +138,45 @@ export default function AddGuestPage() {
         return accessToken;
     }
 
+    async function notifyAdminOfNewClient(
+        guestName: string,
+        phone: string | null,
+        instagram: string | null,
+        vipLevel: string
+    ) {
+        const accessToken =
+            await getAccessToken();
+
+        const response = await fetch(
+            "/api/admin/new-client-notification",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify({
+                    name: guestName,
+                    phone: phone || "Not provided",
+                    instagram:
+                        instagram || "Not provided",
+                    vipLevel:
+                        vipLevel || "Regular",
+                }),
+            }
+        );
+
+        const result =
+            (await response.json()) as SmsApiResponse;
+
+        if (!response.ok || !result.success) {
+            throw new Error(
+                result.error ||
+                "The admin notification could not be sent."
+            );
+        }
+    }
+
     async function sendAutomaticMessage(
         guestId: number,
         guestName: string,
@@ -383,6 +422,22 @@ export default function AddGuestPage() {
         }
 
         console.log("Guest added:", data);
+
+        if (form.guest_purpose === "new_client") {
+            try {
+                await notifyAdminOfNewClient(
+                    data.name,
+                    data.phone,
+                    data.instagram,
+                    data.vip_level
+                );
+            } catch (notificationError) {
+                console.error(
+                    "Admin new-client notification failed:",
+                    notificationError
+                );
+            }
+        }
 
         if (
             form.automatic_sms_enabled &&
