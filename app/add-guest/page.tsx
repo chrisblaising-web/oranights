@@ -116,6 +116,28 @@ export default function AddGuestPage() {
         return parsedPhone.number;
     }
 
+    async function getAccessToken() {
+        const { data, error } =
+            await supabase.auth.getSession();
+
+        if (error) {
+            throw new Error(
+                `Unable to verify your login session: ${error.message}`
+            );
+        }
+
+        const accessToken =
+            data.session?.access_token;
+
+        if (!accessToken) {
+            throw new Error(
+                "You must be logged in before sending the automatic SMS."
+            );
+        }
+
+        return accessToken;
+    }
+
     async function sendAutomaticMessage(
         guestId: number,
         guestName: string,
@@ -195,10 +217,14 @@ export default function AddGuestPage() {
             getFirstName(guestName)
         );
 
+        const accessToken =
+            await getAccessToken();
+
         const response = await fetch("/api/send-sms", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
             },
             body: JSON.stringify({
                 guestId,
