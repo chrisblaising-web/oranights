@@ -349,26 +349,31 @@ export default function SmsInboxPage() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-black text-white">
-      <Sidebar />
+    <div className="flex h-[100dvh] min-h-0 overflow-hidden bg-black text-white">
+      <div className="hidden lg:block">
+        <Sidebar />
+      </div>
 
-      <main className="min-w-0 flex-1 overflow-hidden">
-        <div className="border-b border-white/10 bg-black/90 px-4 py-5 backdrop-blur md:px-8">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold md:text-3xl">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div
+          className={`shrink-0 border-b border-white/10 bg-black/95 px-4 pb-4 pt-[max(16px,env(safe-area-inset-top))] backdrop-blur md:px-8 md:py-5 ${mobileConversationOpen ? "hidden lg:block" : "block"
+            }`}
+        >
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                <h1 className="truncate text-2xl font-bold md:text-3xl">
                   Conversations
                 </h1>
 
                 {totalUnread > 0 && (
-                  <span className="rounded-full bg-red-500 px-3 py-1 text-xs font-bold text-white">
+                  <span className="shrink-0 rounded-full bg-red-500 px-2.5 py-1 text-[11px] font-bold text-white sm:px-3 sm:text-xs">
                     {totalUnread} unread
                   </span>
                 )}
               </div>
 
-              <p className="mt-1 text-sm text-white/50">
+              <p className="mt-1 hidden text-sm text-white/50 sm:block">
                 Manage one-to-one guest conversations from your CRM.
               </p>
             </div>
@@ -377,28 +382,40 @@ export default function SmsInboxPage() {
               type="button"
               disabled={loading}
               onClick={() => void loadMessages(true)}
-              className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-11 shrink-0 rounded-xl border border-white/15 bg-white/5 px-3 text-sm font-medium transition active:scale-[0.98] active:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 lg:hover:bg-white/10"
             >
               {loading ? "Refreshing..." : "Refresh"}
             </button>
           </div>
         </div>
 
-        <div className="h-[calc(100vh-105px)] p-4 md:p-6">
+        <div
+          className={`min-h-0 flex-1 ${mobileConversationOpen
+              ? "p-0"
+              : "p-0 lg:p-6"
+            }`}
+        >
           {notice && (
             <div
-              className={`mb-4 rounded-xl border px-4 py-3 text-sm ${noticeClasses[notice.tone]}`}
+              className={`mx-3 mt-3 rounded-xl border px-4 py-3 text-sm lg:mx-0 lg:mb-4 lg:mt-0 ${noticeClasses[notice.tone]
+                }`}
             >
               {notice.message}
             </div>
           )}
 
-          <div className="h-full min-h-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] shadow-2xl">
-            <div className="grid h-full min-h-0 lg:grid-cols-[360px_1fr]">
+          <div
+            className={`min-h-0 overflow-hidden bg-white/[0.03] ${notice
+                ? "h-[calc(100%-76px)] lg:h-[calc(100%-68px)]"
+                : "h-full"
+              } lg:rounded-2xl lg:border lg:border-white/10 lg:shadow-2xl`}
+          >
+            <div className="grid h-full min-h-0 lg:grid-cols-[360px_minmax(0,1fr)]">
               <div
-                className={
-                  mobileConversationOpen ? "hidden lg:block" : "block"
-                }
+                className={`min-h-0 ${mobileConversationOpen
+                    ? "hidden lg:block"
+                    : "block"
+                  }`}
               >
                 <ConversationList
                   conversations={conversations}
@@ -406,17 +423,23 @@ export default function SmsInboxPage() {
                   search={search}
                   loading={loading}
                   onSearch={setSearch}
-                  onSelect={(phone) => void selectConversation(phone)}
+                  onSelect={(phone) =>
+                    void selectConversation(phone)
+                  }
                 />
               </div>
 
               <section
-                className={`${mobileConversationOpen ? "flex" : "hidden lg:flex"
-                  } min-h-0 min-w-0 flex-col`}
+                className={`${mobileConversationOpen
+                    ? "flex"
+                    : "hidden lg:flex"
+                  } min-h-0 min-w-0 flex-col overflow-hidden`}
               >
                 <ChatWindow
                   conversation={selectedConversation}
-                  onBack={() => setMobileConversationOpen(false)}
+                  onBack={() =>
+                    setMobileConversationOpen(false)
+                  }
                 />
 
                 {selectedConversation && (
@@ -424,7 +447,9 @@ export default function SmsInboxPage() {
                     value={replyMessage}
                     sending={sending}
                     onChange={setReplyMessage}
-                    onSend={() => void sendReply()}
+                    onSend={() =>
+                      void sendReply()
+                    }
                   />
                 )}
               </section>

@@ -38,11 +38,11 @@ export default function ConversationList({
     : conversations;
 
   return (
-    <section className="flex h-full min-h-0 flex-col bg-[#111111] lg:border-r lg:border-white/10">
-      <header className="border-b border-white/10 px-4 pb-4 pt-5">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-white">
+    <section className="flex h-full min-h-0 flex-col overflow-hidden bg-[#111111] lg:border-r lg:border-white/10">
+      <header className="z-20 shrink-0 border-b border-white/10 bg-[#111111]/95 px-4 pb-4 pt-[max(16px,env(safe-area-inset-top))] backdrop-blur">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="truncate text-xl font-bold text-white">
               Messages
             </h2>
 
@@ -52,7 +52,7 @@ export default function ConversationList({
             </p>
           </div>
 
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-lg">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg">
             💬
           </div>
         </div>
@@ -76,27 +76,29 @@ export default function ConversationList({
               onSearch(event.target.value)
             }
             placeholder="Search conversations"
-            className="w-full rounded-full border border-white/10 bg-white/[0.06] py-3 pl-10 pr-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-blue-500/60 focus:bg-white/[0.08]"
+            className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.06] pl-10 pr-4 text-base text-white outline-none transition placeholder:text-white/30 focus:border-blue-500/60 focus:bg-white/[0.08]"
           />
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {loading ? (
           <div className="space-y-2 p-3">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div
-                key={index}
-                className="flex animate-pulse gap-3 rounded-2xl p-3"
-              >
-                <div className="h-14 w-14 shrink-0 rounded-full bg-white/10" />
+            {Array.from({ length: 6 }).map(
+              (_, index) => (
+                <div
+                  key={index}
+                  className="flex animate-pulse gap-3 rounded-2xl p-3"
+                >
+                  <div className="h-14 w-14 shrink-0 rounded-full bg-white/10" />
 
-                <div className="min-w-0 flex-1 space-y-3 py-1">
-                  <div className="h-3 w-2/3 rounded bg-white/10" />
-                  <div className="h-3 w-full rounded bg-white/5" />
+                  <div className="min-w-0 flex-1 space-y-3 py-1">
+                    <div className="h-3 w-2/3 rounded bg-white/10" />
+                    <div className="h-3 w-full rounded bg-white/5" />
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            )}
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center px-8 text-center">
@@ -113,7 +115,7 @@ export default function ConversationList({
             </p>
           </div>
         ) : (
-          <div className="p-2">
+          <div className="space-y-1 p-2 pb-[max(12px,env(safe-area-inset-bottom))]">
             {filtered.map((conversation) => {
               const selected =
                 conversation.phone === selectedPhone;
@@ -134,9 +136,9 @@ export default function ConversationList({
                   onClick={() =>
                     onSelect(conversation.phone)
                   }
-                  className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${selected
+                  className={`group flex min-h-[76px] w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition active:scale-[0.99] ${selected
                       ? "bg-blue-600/20"
-                      : "hover:bg-white/[0.06]"
+                      : "active:bg-white/[0.08] lg:hover:bg-white/[0.06]"
                     }`}
                 >
                   <div className="relative shrink-0">
@@ -198,7 +200,8 @@ export default function ConversationList({
 
                       {hasUnread && (
                         <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-blue-500 px-1.5 text-[10px] font-bold text-white">
-                          {conversation.unreadCount > 99
+                          {conversation.unreadCount >
+                            99
                             ? "99+"
                             : conversation.unreadCount}
                         </span>

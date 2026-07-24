@@ -38,19 +38,6 @@ type SmsTemplate = {
   is_active: boolean | null;
 };
 
-const GROUP_OPTIONS = [
-  "All Guests",
-  "VIP",
-  "BLACK",
-  "New Guest",
-  "Regular Client",
-  "High Spender",
-  "Influencer",
-  "Birthday",
-  "Artist",
-  "Promoter",
-];
-
 function personalizeMessage(
   template: string,
   fullName: string | null
@@ -233,6 +220,23 @@ export default function SMSPage() {
       );
     }
   }
+
+  const groupOptions = useMemo(() => {
+    const tags = guests
+      .map((guest) => guest.tag?.trim())
+      .filter((tag): tag is string => Boolean(tag));
+
+    const vipLevels = guests
+      .map((guest) => guest.vip_level?.trim())
+      .filter((level): level is string => Boolean(level));
+
+    return [
+      "All Guests",
+      ...Array.from(new Set([...vipLevels, ...tags])).sort((a, b) =>
+        a.localeCompare(b)
+      ),
+    ];
+  }, [guests]);
 
   const selectedGuest =
     useMemo(() => {
@@ -513,15 +517,15 @@ export default function SMSPage() {
         if (!checkResponse.ok || !checkData.success) {
           throw new Error(
             checkData.error ||
-              "Duplicate verification failed."
+            "Duplicate verification failed."
           );
         }
 
         if (checkData.duplicate) {
           duplicateRecipients.push(
             recipient.name ||
-              recipient.phone ||
-              "Unknown recipient"
+            recipient.phone ||
+            "Unknown recipient"
           );
         }
       }
@@ -538,8 +542,7 @@ export default function SMSPage() {
           duplicateRecipients.length - 10;
 
         const warning = [
-          `${duplicateRecipients.length} recipient${
-            duplicateRecipients.length === 1 ? " has" : "s have"
+          `${duplicateRecipients.length} recipient${duplicateRecipients.length === 1 ? " has" : "s have"
           } already received this campaign:`,
           "",
           duplicatePreview,
@@ -871,9 +874,9 @@ export default function SMSPage() {
                     setStatus("");
                   }}
                   className={`rounded-lg border p-4 text-left transition ${recipientMode ===
-                      "individual"
-                      ? "border-blue-500 bg-blue-950/40"
-                      : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
+                    "individual"
+                    ? "border-blue-500 bg-blue-950/40"
+                    : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
                     }`}
                 >
                   <p className="font-semibold">
@@ -903,9 +906,9 @@ export default function SMSPage() {
                     setStatus("");
                   }}
                   className={`rounded-lg border p-4 text-left transition ${recipientMode ===
-                      "manual"
-                      ? "border-blue-500 bg-blue-950/40"
-                      : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
+                    "manual"
+                    ? "border-blue-500 bg-blue-950/40"
+                    : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
                     }`}
                 >
                   <p className="font-semibold">
@@ -931,9 +934,9 @@ export default function SMSPage() {
                     setStatus("");
                   }}
                   className={`rounded-lg border p-4 text-left transition ${recipientMode ===
-                      "group"
-                      ? "border-blue-500 bg-blue-950/40"
-                      : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
+                    "group"
+                    ? "border-blue-500 bg-blue-950/40"
+                    : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
                     }`}
                 >
                   <p className="font-semibold">
@@ -1169,7 +1172,7 @@ export default function SMSPage() {
                       Choose a group
                     </option>
 
-                    {GROUP_OPTIONS.map(
+                    {groupOptions.map(
                       (group) => (
                         <option
                           key={group}
