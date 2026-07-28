@@ -1419,8 +1419,7 @@ export async function POST(
     */
     if (
       form.event_id &&
-      guestId &&
-      phone
+      guestId
     ) {
       const {
         data: eventData,
@@ -1482,7 +1481,7 @@ export async function POST(
               `
             )
             .eq("event_id", event.id)
-            .eq("phone", phone)
+            .eq("guest_id", guestId)
             .maybeSingle();
 
           if (existingEntryError) {
@@ -1506,7 +1505,7 @@ export async function POST(
                 guest_id: guestId,
                 form_submission_id:
                   submission.id,
-                phone,
+                phone: phone || null,
                 status: "confirmed",
                 invitation_status:
                   "pending",
@@ -1539,6 +1538,7 @@ export async function POST(
 
           if (
             guestListEntry &&
+            phone &&
             !guestListEntry.sms_opted_out &&
             !guestListEntry.invitation_sent_at &&
             guestListEntry.invitation_status !==

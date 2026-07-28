@@ -12,21 +12,64 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  "https://oranights.vercel.app";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://oranights.vercel.app"),
-  title: "WKND Presents | Ora Nights Guest List",
-  description: "Join the official Ora Nights guest list.",
+  metadataBase: new URL(siteUrl),
+
+  title: {
+    default:
+      "WKND Presents | Official Ora Nights Guest List",
+    template: "%s | WKND Presents",
+  },
+
+  description:
+    "Register for the official Ora Nights guest list by WKND Presents in Montréal.",
+
+  applicationName: "WKND Presents",
+  category: "events",
+
+  keywords: [
+    "Ora Nights",
+    "WKND Presents",
+    "Montréal events",
+    "guest list",
+    "ZAMA Montréal",
+  ],
+
+  authors: [
+    {
+      name: "WKND Presents",
+    },
+  ],
+
+  creator: "WKND Presents",
+  publisher: "WKND Presents",
+
+  robots: {
+    index: true,
+    follow: true,
+  },
+
   openGraph: {
-    title: "WKND Presents | Ora Nights Guest List",
-    description: "Join the official Ora Nights guest list.",
+    title:
+      "Official Ora Nights Guest List | WKND Presents",
+    description:
+      "Register for the official Ora Nights guest list by WKND Presents in Montréal.",
     url: "/f/ora-night-guest-list",
     siteName: "WKND Presents",
+    locale: "en_CA",
     type: "website",
   },
+
   twitter: {
     card: "summary_large_image",
-    title: "WKND Presents | Ora Nights Guest List",
-    description: "Join the official Ora Nights guest list.",
+    title:
+      "Official Ora Nights Guest List | WKND Presents",
+    description:
+      "Register for the official Ora Nights guest list by WKND Presents in Montréal.",
   },
 };
 
@@ -40,7 +83,9 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="flex min-h-full flex-col bg-black text-white">
+        {children}
+      </body>
     </html>
   );
 }

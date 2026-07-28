@@ -33,6 +33,7 @@ type CreateFormBody = {
     name?: string;
     slug?: string;
     form_type?: string;
+    event_id?: number;
     title?: string;
     description?: string;
     success_message?: string;
@@ -158,6 +159,19 @@ function cleanFieldKey(value: string) {
     return cleanSlug(value)
         .replaceAll("-", "_")
         .slice(0, 100);
+}
+
+function cleanPositiveInteger(value: unknown) {
+    const numberValue = Number(value);
+
+    if (
+        !Number.isInteger(numberValue) ||
+        numberValue <= 0
+    ) {
+        return null;
+    }
+
+    return numberValue;
 }
 
 export async function POST(
@@ -286,6 +300,11 @@ export async function POST(
             cleanText(body.form_type, 50) ||
             "custom";
 
+        const eventId =
+            cleanPositiveInteger(
+                body.event_id
+            );
+
         const description =
             cleanText(body.description, 5_000) ||
             null;
@@ -336,6 +355,17 @@ export async function POST(
                     success: false,
                     error:
                         "A valid form slug is required.",
+                },
+                400
+            );
+        }
+
+        if (!eventId) {
+            return jsonResponse(
+                {
+                    success: false,
+                    error:
+                        "Select a valid event for this form.",
                 },
                 400
             );
@@ -493,6 +523,44 @@ export async function POST(
             : [];
 
         const {
+            data: selectedEvent,
+            error: selectedEventError,
+        } = await supabase
+            .from("events")
+            .select(
+                "id,name,is_active"
+            )
+            .eq("id", eventId)
+            .maybeSingle();
+
+        if (selectedEventError) {
+            console.error(
+                "Selected event lookup error:",
+                selectedEventError
+            );
+
+            return jsonResponse(
+                {
+                    success: false,
+                    error:
+                        "The selected event could not be verified.",
+                },
+                500
+            );
+        }
+
+        if (!selectedEvent) {
+            return jsonResponse(
+                {
+                    success: false,
+                    error:
+                        "The selected event does not exist.",
+                },
+                404
+            );
+        }
+
+        const {
             data: existingForm,
             error: existingFormError,
         } = await supabase
@@ -537,6 +605,7 @@ export async function POST(
                 name,
                 slug,
                 form_type: formType,
+                event_id: eventId,
                 title,
                 description,
                 success_message:
@@ -547,7 +616,7 @@ export async function POST(
                 is_active: true,
             })
             .select(
-                "id,name,slug,form_type,title"
+                "id,name,slug,form_type,title,event_id"
             )
             .single();
 

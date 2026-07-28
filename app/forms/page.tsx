@@ -14,6 +14,21 @@ type CampaignForm = {
     description: string | null;
     is_active: boolean;
     created_at: string;
+    event_id: number | null;
+    events:
+    | {
+        id: number;
+        name: string;
+        venue: string | null;
+        event_date: string;
+    }
+    | {
+        id: number;
+        name: string;
+        venue: string | null;
+        event_date: string;
+    }[]
+    | null;
 };
 
 type SubmissionCount = {
@@ -37,7 +52,23 @@ export default function FormsPage() {
                 await supabase
                     .from("forms")
                     .select(
-                        "id,name,slug,form_type,title,description,is_active,created_at"
+                        `
+                            id,
+                            name,
+                            slug,
+                            form_type,
+                            title,
+                            description,
+                            is_active,
+                            created_at,
+                            event_id,
+                            events (
+                                id,
+                                name,
+                                venue,
+                                event_date
+                            )
+                        `
                     )
                     .order("created_at", {
                         ascending: false,
@@ -152,40 +183,40 @@ export default function FormsPage() {
             setStatus("Embed code could not be copied.");
         }
     }
-	
-	async function duplicateForm(formId: number) {
-  setStatus("Duplicating form...");
 
-  try {
-    const response = await fetch(
-      `/api/forms/${formId}/duplicate`,
-      {
-        method: "POST",
-      }
-    );
+    async function duplicateForm(formId: number) {
+        setStatus("Duplicating form...");
 
-    const result = await response.json().catch(() => null);
+        try {
+            const response = await fetch(
+                `/api/forms/${formId}/duplicate`,
+                {
+                    method: "POST",
+                }
+            );
 
-    if (!response.ok || !result?.success) {
-      throw new Error(
-        result?.error ||
-          "The form could not be duplicated."
-      );
+            const result = await response.json().catch(() => null);
+
+            if (!response.ok || !result?.success) {
+                throw new Error(
+                    result?.error ||
+                    "The form could not be duplicated."
+                );
+            }
+
+            setStatus(
+                `"${result.form.name}" was created as an inactive copy.`
+            );
+
+            await loadForms();
+        } catch (error) {
+            setStatus(
+                error instanceof Error
+                    ? error.message
+                    : "The form could not be duplicated."
+            );
+        }
     }
-
-    setStatus(
-      `"${result.form.name}" was created as an inactive copy.`
-    );
-
-    await loadForms();
-  } catch (error) {
-    setStatus(
-      error instanceof Error
-        ? error.message
-        : "The form could not be duplicated."
-    );
-  }
-}
 
 
     useEffect(() => {
@@ -260,6 +291,11 @@ export default function FormsPage() {
                                 const submissionCount =
                                     submissionCounts[form.id] || 0;
 
+                                const connectedEvent =
+                                    Array.isArray(form.events)
+                                        ? form.events[0] ?? null
+                                        : form.events;
+
                                 return (
                                     <article
                                         key={form.id}
@@ -278,12 +314,45 @@ export default function FormsPage() {
                                                 <p className="mt-1 text-sm text-zinc-500">
                                                     /f/{form.slug}
                                                 </p>
+
+                                                {connectedEvent ? (
+                                                    <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
+                                                        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">
+                                                            Connected Event
+                                                        </p>
+
+                                                        <p className="mt-1 text-sm font-semibold text-white">
+                                                            {connectedEvent.name}
+                                                        </p>
+
+                                                        <p className="mt-1 text-xs text-emerald-100/70">
+                                                            {connectedEvent.venue || "Venue not set"}
+                                                            {" · "}
+                                                            {new Date(
+                                                                `${connectedEvent.event_date}T12:00:00`
+                                                            ).toLocaleDateString(
+                                                                "en-CA",
+                                                                {
+                                                                    year: "numeric",
+                                                                    month: "short",
+                                                                    day: "numeric",
+                                                                }
+                                                            )}
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                                                        <p className="text-xs font-semibold text-amber-300">
+                                                            No event connected
+                                                        </p>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <span
                                                 className={`rounded-full px-3 py-1 text-xs font-semibold ${form.is_active
-                                                        ? "bg-green-500/10 text-green-300"
-                                                        : "bg-zinc-800 text-zinc-400"
+                                                    ? "bg-green-500/10 text-green-300"
+                                                    : "bg-zinc-800 text-zinc-400"
                                                     }`}
                                             >
                                                 {form.is_active
@@ -368,7 +437,7 @@ export default function FormsPage() {
                                                 }
                                                 className="rounded-lg border border-white/10 px-4 py-2.5 text-sm text-zinc-300 transition hover:bg-white/5"
                                             >
-											
+
                                                 Copy Link
                                             </button>
 
@@ -381,15 +450,15 @@ export default function FormsPage() {
                                             >
                                                 Copy Embed
                                             </button>
-											
-											
-											<button
-                                                   type="button"
-                                           onClick={() => void duplicateForm(form.id)}
-                                        className="rounded-lg border border-white/10 px-4 py-2.5 text-sm text-zinc-300 transition hover:bg-white/5 sm:col-span-2"
->
-  Duplicate Form
-</button>
+
+
+                                            <button
+                                                type="button"
+                                                onClick={() => void duplicateForm(form.id)}
+                                                className="rounded-lg border border-white/10 px-4 py-2.5 text-sm text-zinc-300 transition hover:bg-white/5 sm:col-span-2"
+                                            >
+                                                Duplicate Form
+                                            </button>
                                         </div>
                                     </article>
                                 );

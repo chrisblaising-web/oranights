@@ -1,22 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
+import { supabase } from "@/lib/supabase";
+
+type EventOption = {
+  id: number;
+  name: string;
+  venue: string | null;
+  event_date: string;
+  is_active: boolean;
+};
 
 type BuilderField = {
   id: string;
   field_key: string;
   label: string;
   field_type:
-    | "text"
-    | "email"
-    | "phone"
-    | "date"
-    | "textarea"
-    | "select"
-    | "checkbox";
+  | "text"
+  | "email"
+  | "phone"
+  | "date"
+  | "textarea"
+  | "select"
+  | "checkbox";
   placeholder: string;
   is_required: boolean;
   optionsText: string;
@@ -96,6 +105,9 @@ export default function NewFormPage() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [formType, setFormType] = useState("raffle");
+  const [eventId, setEventId] = useState("");
+  const [events, setEvents] = useState<EventOption[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [successMessage, setSuccessMessage] = useState(
@@ -112,6 +124,54 @@ export default function NewFormPage() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
 
+  useEffect(() => {
+    async function loadEvents() {
+      setLoadingEvents(true);
+
+      try {
+        const { data, error } = await supabase
+          .from("events")
+          .select("id,name,venue,event_date,is_active")
+          .order("event_date", {
+            ascending: false,
+          });
+
+        if (error) {
+          throw error;
+        }
+
+        const loadedEvents =
+          (data as EventOption[]) ?? [];
+
+        setEvents(loadedEvents);
+
+        const activeEvent =
+          loadedEvents.find(
+            (event) => event.is_active
+          );
+
+        if (activeEvent) {
+          setEventId(String(activeEvent.id));
+        }
+      } catch (error) {
+        console.error(
+          "Unable to load events:",
+          error
+        );
+
+        setStatus(
+          error instanceof Error
+            ? `Events could not be loaded: ${error.message}`
+            : "Events could not be loaded."
+        );
+      } finally {
+        setLoadingEvents(false);
+      }
+    }
+
+    void loadEvents();
+  }, []);
+
   const previewSlug = useMemo(() => {
     return makeSlug(slug || name || "new-form");
   }, [slug, name]);
@@ -124,9 +184,9 @@ export default function NewFormPage() {
       currentFields.map((field) =>
         field.id === id
           ? {
-              ...field,
-              ...updates,
-            }
+            ...field,
+            ...updates,
+          }
           : field
       )
     );
@@ -233,6 +293,11 @@ export default function NewFormPage() {
       return;
     }
 
+    if (!eventId) {
+      setStatus("Select the event connected to this form.");
+      return;
+    }
+
     if (fields.length === 0) {
       setStatus("Add at least one field.");
       return;
@@ -280,6 +345,7 @@ export default function NewFormPage() {
             name: name.trim(),
             slug: previewSlug,
             form_type: formType,
+            event_id: Number(eventId),
             title: title.trim(),
             description: description.trim(),
             success_message: successMessage.trim(),
@@ -303,11 +369,11 @@ export default function NewFormPage() {
                 options:
                   field.field_type === "select"
                     ? field.optionsText
-                        .split(",")
-                        .map((option) =>
-                          option.trim()
-                        )
-                        .filter(Boolean)
+                      .split(",")
+                      .map((option) =>
+                        option.trim()
+                      )
+                      .filter(Boolean)
                     : [],
                 sort_order: index + 1,
               })
@@ -323,7 +389,7 @@ export default function NewFormPage() {
       if (!response.ok || !result?.success) {
         throw new Error(
           result?.error ||
-            "The form could not be created."
+          "The form could not be created."
         );
       }
 
@@ -470,6 +536,50 @@ export default function NewFormPage() {
                       Custom
                     </option>
                   </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label
+                    htmlFor="event-id"
+                    className="mb-2 block text-sm text-zinc-400"
+                  >
+                    Connected event
+                  </label>
+
+                  <select
+                    id="event-id"
+                    value={eventId}
+                    onChange={(event) =>
+                      setEventId(event.target.value)
+                    }
+                    disabled={loadingEvents}
+                    className="w-full rounded-lg bg-zinc-900 p-4 outline-none ring-blue-500 focus:ring-2 disabled:opacity-50"
+                  >
+                    <option value="">
+                      {loadingEvents
+                        ? "Loading events..."
+                        : "Select an event"}
+                    </option>
+
+                    {events.map((event) => (
+                      <option
+                        key={event.id}
+                        value={event.id}
+                      >
+                        {event.name}
+                        {event.venue
+                          ? ` — ${event.venue}`
+                          : ""}
+                        {event.is_active
+                          ? " (Active)"
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+
+                  <p className="mt-2 text-xs text-zinc-500">
+                    New submissions will be connected to this event.
+                  </p>
                 </div>
 
                 <div className="md:col-span-2">
@@ -846,18 +956,18 @@ export default function NewFormPage() {
 
                       {field.field_type ===
                         "select" && (
-                        <input
-                          value={field.optionsText}
-                          onChange={(event) =>
-                            updateField(field.id, {
-                              optionsText:
-                                event.target.value,
-                            })
-                          }
-                          placeholder="Options separated by commas"
-                          className="rounded-lg bg-zinc-900 p-3 outline-none ring-blue-500 focus:ring-2 md:col-span-2"
-                        />
-                      )}
+                          <input
+                            value={field.optionsText}
+                            onChange={(event) =>
+                              updateField(field.id, {
+                                optionsText:
+                                  event.target.value,
+                              })
+                            }
+                            placeholder="Options separated by commas"
+                            className="rounded-lg bg-zinc-900 p-3 outline-none ring-blue-500 focus:ring-2 md:col-span-2"
+                          />
+                        )}
 
                       <label className="flex items-center gap-3 text-sm text-zinc-300">
                         <input
@@ -900,7 +1010,7 @@ export default function NewFormPage() {
               {fields.map((field) => (
                 <div key={field.id}>
                   {field.field_type ===
-                  "checkbox" ? (
+                    "checkbox" ? (
                     <label className="flex items-start gap-3 rounded-lg bg-black p-3 text-sm text-zinc-400">
                       <input
                         type="checkbox"
@@ -933,7 +1043,7 @@ export default function NewFormPage() {
                       </label>
 
                       {field.field_type ===
-                      "textarea" ? (
+                        "textarea" ? (
                         <textarea
                           disabled
                           placeholder={
@@ -957,7 +1067,7 @@ export default function NewFormPage() {
                           disabled
                           type={
                             field.field_type ===
-                            "phone"
+                              "phone"
                               ? "tel"
                               : field.field_type
                           }

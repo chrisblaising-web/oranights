@@ -6,6 +6,14 @@ import { useParams, useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { supabase } from "@/lib/supabase";
 
+type EventOption = {
+  id: number;
+  name: string;
+  venue: string | null;
+  event_date: string;
+  is_active: boolean;
+};
+
 type FieldType =
   | "text"
   | "email"
@@ -36,6 +44,7 @@ type FormRecord = {
   submit_button_text: string | null;
   tags_to_apply: string[] | null;
   is_active: boolean;
+  event_id: number | null;
 };
 
 type FormFieldRecord = {
@@ -85,6 +94,8 @@ export default function EditFormPage() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [formType, setFormType] = useState("custom");
+  const [eventId, setEventId] = useState("");
+  const [events, setEvents] = useState<EventOption[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -128,7 +139,8 @@ export default function EditFormPage() {
                 success_message,
                 submit_button_text,
                 tags_to_apply,
-                is_active
+                is_active,
+                event_id
               `
             )
             .eq("id", formId)
@@ -160,6 +172,27 @@ export default function EditFormPage() {
             : ""
         );
         setIsActive(loadedForm.is_active);
+        setEventId(
+          loadedForm.event_id
+            ? String(loadedForm.event_id)
+            : ""
+        );
+
+        const { data: eventData, error: eventError } =
+          await supabase
+            .from("events")
+            .select("id,name,venue,event_date,is_active")
+            .order("event_date", {
+              ascending: false,
+            });
+
+        if (eventError) {
+          throw new Error(eventError.message);
+        }
+
+        setEvents(
+          (eventData as EventOption[]) ?? []
+        );
 
         const { data: fieldData, error: fieldError } =
           await supabase
@@ -303,6 +336,11 @@ export default function EditFormPage() {
       return;
     }
 
+    if (!eventId) {
+      setStatus("Select the event connected to this form.");
+      return;
+    }
+
     if (fields.length === 0) {
       setStatus("Add at least one field.");
       return;
@@ -366,6 +404,7 @@ export default function EditFormPage() {
             name: name.trim(),
             slug: previewSlug,
             form_type: formType,
+            event_id: Number(eventId),
             title: title.trim(),
             description: description.trim(),
             success_message: successMessage.trim(),
@@ -521,6 +560,43 @@ export default function EditFormPage() {
                     </option>
                     <option value="custom">Custom</option>
                   </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm text-zinc-400">
+                    Connected event
+                  </label>
+
+                  <select
+                    value={eventId}
+                    onChange={(event) =>
+                      setEventId(event.target.value)
+                    }
+                    className="w-full rounded-lg bg-zinc-900 p-4 outline-none ring-blue-500 focus:ring-2"
+                  >
+                    <option value="">
+                      Select an event
+                    </option>
+
+                    {events.map((event) => (
+                      <option
+                        key={event.id}
+                        value={event.id}
+                      >
+                        {event.name}
+                        {event.venue
+                          ? ` — ${event.venue}`
+                          : ""}
+                        {event.is_active
+                          ? " (Active)"
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+
+                  <p className="mt-2 text-xs text-zinc-500">
+                    New submissions will be added to this event.
+                  </p>
                 </div>
 
                 <div className="md:col-span-2">

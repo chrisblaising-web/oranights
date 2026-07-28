@@ -2,43 +2,36 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@supabase/ssr";
+import Sidebar from "@/components/Sidebar";
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_INVITATION_MESSAGE = `You’re on the {{event_name}} guest list 🎉
+type EventRecord = {
+  id: number;
+  name: string;
+  venue: string | null;
+  address: string | null;
+  event_date: string;
+  dinner_time: string | null;
+  club_time: string | null;
+  host_name: string | null;
+  is_active: boolean;
+};
 
-📅 {{event_date}}
-📍 {{venue}}
-{{address}}
-🍽️ Lounge dinner: {{dinner_time}}–{{club_time}}
-🌙 Celebration from {{club_time}}
-🎶 {{music}}
-👔 {{dress_code}}
+type CampaignForm = {
+  id: number;
+  event_id: number | null;
+};
 
-Hosted by {{host_name}}`;
+type GuestListEntry = {
+  id: number;
+  event_id: number;
+  status: string;
+};
 
-const DEFAULT_REMINDER_MESSAGE = `{{event_name}} is tonight 🔥
-
-📅 {{event_date}}
-📍 {{venue}}
-{{address}}
-🍽️ Lounge dinner: {{dinner_time}}–{{club_time}}
-🌙 Celebration from {{club_time}}
-👔 {{dress_code}}
-
-Hosted by {{host_name}}`;
-
-function cleanText(value: FormDataEntryValue | null, max = 2000) {
-  return typeof value === "string"
-    ? value.trim().slice(0, max)
-    : "";
-}
-
-async function createEvent(formData: FormData) {
-  "use server";
-
-  const cookieStore = await cookies();
-
+function createSupabaseClient(
+  cookieStore: Awaited<ReturnType<typeof cookies>>
+) {
   const supabaseUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -46,12 +39,12 @@ async function createEvent(formData: FormData) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    redirect(
-      "/events/new?error=Missing%20Supabase%20configuration"
+    throw new Error(
+      "Missing Supabase configuration."
     );
   }
 
-  const supabase = createServerClient(
+  return createServerClient(
     supabaseUrl,
     supabaseAnonKey,
     {
@@ -74,346 +67,585 @@ async function createEvent(formData: FormData) {
               );
             }
           } catch {
-            // Server actions can normally write cookies.
+            // Server components cannot always set cookies.
           }
         },
       },
     }
   );
+}
+
+async function setEventActive(formData: FormData) {
+  "use server";
+
+  const eventId = Number(
+    formData.get("event_id")
+  );
+
+  if (
+    !Number.isInteger(eventId) ||
+    eventId <= 0
+  ) {
+    redirect(
+      "/events?error=Invalid%20event"
+    );
+  }
+
+  const cookieStore = await cookies();
+  const supabase =
+    createSupabaseClient(cookieStore);
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/events/new");
+    redirect("/login?next=/events");
   }
 
-  const name =
-    cleanText(formData.get("name"), 150) ||
-    "Ora Night";
+  const { error: deactivateError } =
+    await supabase
+      .from("events")
+      .update({
+        is_active: false,
+      })
+      .neq("id", eventId);
 
-  const venue =
-    cleanText(formData.get("venue"), 150);
-
-  const address =
-    cleanText(formData.get("address"), 300);
-
-  const eventDate =
-    cleanText(formData.get("event_date"), 10);
-
-  const dinnerTime =
-    cleanText(formData.get("dinner_time"), 8);
-
-  const clubTime =
-    cleanText(formData.get("club_time"), 8);
-
-  const dressCode =
-    cleanText(formData.get("dress_code"), 300);
-
-  const music =
-    cleanText(formData.get("music"), 300);
-
-  const hostName =
-    cleanText(formData.get("host_name"), 150);
-
-  const invitationMessage =
-    cleanText(
-      formData.get("invitation_message"),
-      2000
-    ) || DEFAULT_INVITATION_MESSAGE;
-
-  const reminderMessage =
-    cleanText(
-      formData.get("reminder_message"),
-      2000
-    ) || DEFAULT_REMINDER_MESSAGE;
-
-  if (
-    !venue ||
-    !address ||
-    !eventDate ||
-    !clubTime
-  ) {
+  if (deactivateError) {
     redirect(
-      "/events/new?error=Venue%2C%20address%2C%20date%2C%20and%20celebration%20time%20are%20required"
-    );
-  }
-
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)
-  ) {
-    redirect(
-      "/events/new?error=Invalid%20event%20date"
-    );
-  }
-
-  const {
-    data: event,
-    error,
-  } = await supabase
-    .from("events")
-    .insert({
-      name,
-      venue,
-      address,
-      event_date: eventDate,
-      dinner_time: dinnerTime || null,
-      club_time: clubTime,
-      timezone: "America/Toronto",
-      dress_code: dressCode || null,
-      music: music || null,
-      host_name: hostName || null,
-      invitation_message: invitationMessage,
-      reminder_message: reminderMessage,
-      is_active: true,
-    })
-    .select("id")
-    .single();
-
-  if (error || !event) {
-    console.error(
-      "Create event error:",
-      error
-    );
-
-    redirect(
-      `/events/new?error=${encodeURIComponent(
-        error?.message ||
-        "The event could not be created"
+      `/events?error=${encodeURIComponent(
+        deactivateError.message
       )}`
     );
   }
 
-  redirect(`/events/${event.id}`);
+  const { error: activateError } =
+    await supabase
+      .from("events")
+      .update({
+        is_active: true,
+      })
+      .eq("id", eventId);
+
+  if (activateError) {
+    redirect(
+      `/events?error=${encodeURIComponent(
+        activateError.message
+      )}`
+    );
+  }
+
+  redirect(
+    "/events?success=Event%20activated"
+  );
 }
 
-type NewEventPageProps = {
+async function deactivateEvent(
+  formData: FormData
+) {
+  "use server";
+
+  const eventId = Number(
+    formData.get("event_id")
+  );
+
+  if (
+    !Number.isInteger(eventId) ||
+    eventId <= 0
+  ) {
+    redirect(
+      "/events?error=Invalid%20event"
+    );
+  }
+
+  const cookieStore = await cookies();
+  const supabase =
+    createSupabaseClient(cookieStore);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?next=/events");
+  }
+
+  const { error } = await supabase
+    .from("events")
+    .update({
+      is_active: false,
+    })
+    .eq("id", eventId);
+
+  if (error) {
+    redirect(
+      `/events?error=${encodeURIComponent(
+        error.message
+      )}`
+    );
+  }
+
+  redirect(
+    "/events?success=Event%20deactivated"
+  );
+}
+
+type EventsPageProps = {
   searchParams: Promise<{
     error?: string;
+    success?: string;
   }>;
 };
 
-export default async function NewEventPage({
+export default async function EventsPage({
   searchParams,
-}: NewEventPageProps) {
+}: EventsPageProps) {
   const params = await searchParams;
-  const errorMessage = params.error
-    ? decodeURIComponent(params.error)
-    : "";
+  const cookieStore = await cookies();
+  const supabase =
+    createSupabaseClient(cookieStore);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?next=/events");
+  }
+
+  const [
+    { data: events, error: eventsError },
+    { data: forms, error: formsError },
+    {
+      data: guestListEntries,
+      error: guestListError,
+    },
+  ] = await Promise.all([
+    supabase
+      .from("events")
+      .select(`
+                id,
+                name,
+                venue,
+                address,
+                event_date,
+                dinner_time,
+                club_time,
+                host_name,
+                is_active
+            `)
+      .order("event_date", {
+        ascending: false,
+      }),
+
+    supabase
+      .from("forms")
+      .select("id,event_id"),
+
+    supabase
+      .from("guest_list_entries")
+      .select("id,event_id,status"),
+  ]);
+
+  const loadError =
+    eventsError ||
+    formsError ||
+    guestListError;
+
+  const eventList =
+    (events ?? []) as EventRecord[];
+
+  const formList =
+    (forms ?? []) as CampaignForm[];
+
+  const entryList =
+    (guestListEntries ??
+      []) as GuestListEntry[];
+
+  const today = new Date()
+    .toISOString()
+    .slice(0, 10);
+
+  const activeEvents = eventList.filter(
+    (event) => event.is_active
+  );
+
+  const upcomingEvents = eventList.filter(
+    (event) =>
+      !event.is_active &&
+      event.event_date >= today
+  );
+
+  const pastEvents = eventList.filter(
+    (event) =>
+      !event.is_active &&
+      event.event_date < today
+  );
+
+  function getEventStats(eventId: number) {
+    const connectedForms =
+      formList.filter(
+        (form) =>
+          form.event_id === eventId
+      ).length;
+
+    const entries = entryList.filter(
+      (entry) =>
+        entry.event_id === eventId &&
+        entry.status !== "cancelled"
+    );
+
+    const checkedIn = entries.filter(
+      (entry) =>
+        entry.status === "checked_in"
+    ).length;
+
+    return {
+      connectedForms,
+      guestList: entries.length,
+      checkedIn,
+      remaining:
+        entries.length - checkedIn,
+    };
+  }
 
   return (
-    <main className="min-h-screen bg-black px-6 py-8 text-white md:px-10">
-      <div className="mx-auto max-w-4xl">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-zinc-500">
-              Ora CRM
-            </p>
+    <div className="flex min-h-screen bg-black text-white">
+      <Sidebar />
 
-            <h1 className="mt-2 text-4xl font-bold">
-              Create Event
-            </h1>
+      <main className="min-w-0 flex-1 p-6 md:p-10">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-[0.25em] text-zinc-500">
+                Ora CRM
+              </p>
 
-            <p className="mt-2 text-zinc-400">
-              Create one event for each Ora Night date.
-            </p>
-          </div>
+              <h1 className="mt-2 text-4xl font-bold">
+                Events
+              </h1>
 
-          <Link
-            href="/events"
-            className="rounded-xl border border-zinc-700 px-4 py-2 font-semibold transition hover:bg-zinc-900"
-          >
-            Back to Events
-          </Link>
-        </div>
-
-        {errorMessage ? (
-          <div className="mt-6 rounded-2xl border border-red-900 bg-red-950/40 p-4 text-red-200">
-            {errorMessage}
-          </div>
-        ) : null}
-
-        <form
-          action={createEvent}
-          className="mt-8 space-y-8"
-        >
-          <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-            <h2 className="text-xl font-semibold">
-              Event details
-            </h2>
-
-            <div className="mt-5 grid gap-5 md:grid-cols-2">
-              <Field
-                label="Event name"
-                name="name"
-                defaultValue="Ora Night"
-                required
-              />
-
-              <Field
-                label="Event date"
-                name="event_date"
-                type="date"
-                required
-              />
-
-              <Field
-                label="Venue"
-                name="venue"
-                defaultValue="ZAMA"
-                required
-              />
-
-              <Field
-                label="Address"
-                name="address"
-                defaultValue="3709 Boulevard Saint-Laurent, Montréal"
-                required
-              />
-
-              <Field
-                label="Lounge dinner starts"
-                name="dinner_time"
-                type="time"
-                defaultValue="20:00"
-              />
-
-              <Field
-                label="Celebration starts"
-                name="club_time"
-                type="time"
-                defaultValue="23:00"
-                required
-              />
-
-              <Field
-                label="Dress code"
-                name="dress_code"
-                defaultValue="Dress code required"
-              />
-
-              <Field
-                label="Music"
-                name="music"
-                defaultValue="Afro House • Urban • Amapiano"
-              />
-
-              <Field
-                label="Host"
-                name="host_name"
-                defaultValue="@wknd.presents"
-              />
+              <p className="mt-2 max-w-2xl text-zinc-400">
+                Create, review, activate, and manage every event.
+              </p>
             </div>
-          </section>
-
-          <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-            <h2 className="text-xl font-semibold">
-              SMS notifications
-            </h2>
-
-            <p className="mt-2 text-sm text-zinc-400">
-              These templates automatically use the event
-              details entered above. The first message is sent
-              when someone joins. The reminder is scheduled for
-              the event day at 12:00 PM.
-            </p>
-
-            <div className="mt-4 rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-400">
-              Available variables: {"{{event_name}}"},{" "}
-              {"{{event_date}}"}, {"{{venue}}"},{" "}
-              {"{{address}}"}, {"{{dinner_time}}"},{" "}
-              {"{{club_time}}"}, {"{{dress_code}}"},{" "}
-              {"{{music}}"}, {"{{host_name}}"}
-            </div>
-
-            <div className="mt-5 space-y-5">
-              <TextArea
-                label="Immediate invitation"
-                name="invitation_message"
-                defaultValue={DEFAULT_INVITATION_MESSAGE}
-              />
-
-              <TextArea
-                label="Event-day reminder"
-                name="reminder_message"
-                defaultValue={DEFAULT_REMINDER_MESSAGE}
-              />
-            </div>
-          </section>
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="submit"
-              className="rounded-xl bg-white px-6 py-3 font-semibold text-black transition hover:bg-zinc-200"
-            >
-              Create Event
-            </button>
 
             <Link
-              href="/events"
-              className="rounded-xl border border-zinc-700 px-6 py-3 font-semibold transition hover:bg-zinc-900"
+              href="/events/new"
+              className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 font-semibold text-black transition hover:bg-zinc-200"
             >
-              Cancel
+              Create Event
             </Link>
           </div>
-        </form>
+
+          {params.error ? (
+            <div className="mt-6 rounded-xl border border-red-900 bg-red-950/40 p-4 text-sm text-red-200">
+              {decodeURIComponent(
+                params.error
+              )}
+            </div>
+          ) : null}
+
+          {params.success ? (
+            <div className="mt-6 rounded-xl border border-emerald-900 bg-emerald-950/40 p-4 text-sm text-emerald-200">
+              {decodeURIComponent(
+                params.success
+              )}
+            </div>
+          ) : null}
+
+          {loadError ? (
+            <div className="mt-8 rounded-2xl border border-red-900 bg-red-950/40 p-6">
+              <h2 className="text-xl font-bold text-red-200">
+                Events could not be loaded
+              </h2>
+
+              <p className="mt-2 text-sm text-red-300">
+                {loadError.message}
+              </p>
+            </div>
+          ) : eventList.length === 0 ? (
+            <div className="mt-8 rounded-2xl border border-dashed border-white/15 bg-zinc-950 p-12 text-center">
+              <div className="text-4xl">
+                📅
+              </div>
+
+              <h2 className="mt-4 text-2xl font-bold">
+                No events created yet
+              </h2>
+
+              <p className="mx-auto mt-3 max-w-lg text-zinc-400">
+                Create your first event, then connect campaign forms to it.
+              </p>
+
+              <Link
+                href="/events/new"
+                className="mt-6 inline-flex rounded-xl bg-white px-5 py-3 font-semibold text-black hover:bg-zinc-200"
+              >
+                Create First Event
+              </Link>
+            </div>
+          ) : (
+            <div className="mt-10 space-y-10">
+              <EventSection
+                title="Active Event"
+                description="The event currently used by the dashboard and check-in workflow."
+                events={activeEvents}
+                emptyMessage="No event is currently active."
+                getEventStats={getEventStats}
+              />
+
+              <EventSection
+                title="Upcoming Events"
+                description="Future events that are not currently active."
+                events={upcomingEvents}
+                emptyMessage="No upcoming inactive events."
+                getEventStats={getEventStats}
+              />
+
+              <EventSection
+                title="Past Events"
+                description="Previous events remain available for reporting and review."
+                events={pastEvents}
+                emptyMessage="No past events."
+                getEventStats={getEventStats}
+              />
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+type EventStats = {
+  connectedForms: number;
+  guestList: number;
+  checkedIn: number;
+  remaining: number;
+};
+
+function EventSection({
+  title,
+  description,
+  events,
+  emptyMessage,
+  getEventStats,
+}: {
+  title: string;
+  description: string;
+  events: EventRecord[];
+  emptyMessage: string;
+  getEventStats: (
+    eventId: number
+  ) => EventStats;
+}) {
+  return (
+    <section>
+      <div>
+        <h2 className="text-2xl font-bold">
+          {title}
+        </h2>
+
+        <p className="mt-1 text-sm text-zinc-500">
+          {description}
+        </p>
       </div>
-    </main>
+
+      {events.length === 0 ? (
+        <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-zinc-950 p-6 text-sm text-zinc-500">
+          {emptyMessage}
+        </div>
+      ) : (
+        <div className="mt-5 grid gap-5 xl:grid-cols-2">
+          {events.map((event) => (
+            <EventCard
+              key={event.id}
+              event={event}
+              stats={getEventStats(
+                event.id
+              )}
+            />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
-function Field({
-  label,
-  name,
-  type = "text",
-  defaultValue,
-  required = false,
+function EventCard({
+  event,
+  stats,
 }: {
-  label: string;
-  name: string;
-  type?: string;
-  defaultValue?: string;
-  required?: boolean;
+  event: EventRecord;
+  stats: EventStats;
 }) {
   return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-medium text-zinc-300">
-        {label}
-      </span>
+    <article className="rounded-2xl border border-white/10 bg-zinc-950 p-6 shadow-xl">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${event.is_active
+                  ? "bg-emerald-500/10 text-emerald-300"
+                  : "bg-zinc-800 text-zinc-400"
+                }`}
+            >
+              {event.is_active
+                ? "Active"
+                : "Inactive"}
+            </span>
 
-      <input
-        name={name}
-        type={type}
-        defaultValue={defaultValue}
-        required={required}
-        className="w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 text-white outline-none transition focus:border-zinc-400"
-      />
-    </label>
+            <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300">
+              {new Date(
+                `${event.event_date}T12:00:00`
+              ).toLocaleDateString(
+                "en-CA",
+                {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                }
+              )}
+            </span>
+          </div>
+
+          <h3 className="mt-4 text-2xl font-bold">
+            {event.name}
+          </h3>
+
+          <p className="mt-2 text-sm text-zinc-400">
+            {event.venue ||
+              "Venue not set"}
+          </p>
+
+          <p className="mt-1 text-sm text-zinc-500">
+            {event.address ||
+              "Address not set"}
+          </p>
+
+          <p className="mt-2 text-xs text-zinc-500">
+            Dinner:{" "}
+            {event.dinner_time ||
+              "Not set"}{" "}
+            · Celebration:{" "}
+            {event.club_time ||
+              "Not set"}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-center">
+          <Stat
+            label="Forms"
+            value={
+              stats.connectedForms
+            }
+          />
+
+          <Stat
+            label="Guest List"
+            value={stats.guestList}
+          />
+
+          <Stat
+            label="Checked In"
+            value={stats.checkedIn}
+          />
+
+          <Stat
+            label="Remaining"
+            value={stats.remaining}
+          />
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <Link
+          href={`/events/${event.id}`}
+          className="rounded-lg bg-white px-4 py-2.5 text-center text-sm font-semibold text-black transition hover:bg-zinc-200"
+        >
+          View
+        </Link>
+
+        <Link
+          href={`/events/${event.id}/edit`}
+          className="rounded-lg bg-zinc-800 px-4 py-2.5 text-center text-sm font-semibold transition hover:bg-zinc-700"
+        >
+          Edit
+        </Link>
+
+        <Link
+          href={`/forms?event=${event.id}`}
+          className="rounded-lg bg-zinc-800 px-4 py-2.5 text-center text-sm font-semibold transition hover:bg-zinc-700"
+        >
+          Forms
+        </Link>
+
+        <Link
+          href={`/host/check-in?event=${event.id}`}
+          className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-2.5 text-center text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+        >
+          Check-In
+        </Link>
+      </div>
+
+      <div className="mt-3">
+        {event.is_active ? (
+          <form
+            action={deactivateEvent}
+          >
+            <input
+              type="hidden"
+              name="event_id"
+              value={event.id}
+            />
+
+            <button
+              type="submit"
+              className="w-full rounded-lg border border-white/10 px-4 py-2.5 text-sm font-semibold text-zinc-300 transition hover:bg-white/5"
+            >
+              Deactivate Event
+            </button>
+          </form>
+        ) : (
+          <form
+            action={setEventActive}
+          >
+            <input
+              type="hidden"
+              name="event_id"
+              value={event.id}
+            />
+
+            <button
+              type="submit"
+              className="w-full rounded-lg border border-blue-500/20 bg-blue-500/10 px-4 py-2.5 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/20"
+            >
+              Set as Active Event
+            </button>
+          </form>
+        )}
+      </div>
+    </article>
   );
 }
 
-function TextArea({
+function Stat({
   label,
-  name,
-  defaultValue,
+  value,
 }: {
   label: string;
-  name: string;
-  defaultValue: string;
+  value: number;
 }) {
   return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-medium text-zinc-300">
+    <div className="min-w-24 rounded-xl bg-black p-3">
+      <p className="text-xs uppercase tracking-wide text-zinc-500">
         {label}
-      </span>
+      </p>
 
-      <textarea
-        name={name}
-        defaultValue={defaultValue}
-        rows={9}
-        className="w-full resize-y rounded-xl border border-zinc-700 bg-black px-4 py-3 text-white outline-none transition focus:border-zinc-400"
-      />
-    </label>
+      <p className="mt-1 text-xl font-bold">
+        {value}
+      </p>
+    </div>
   );
 }

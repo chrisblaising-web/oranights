@@ -33,6 +33,10 @@ export default function GuestSearch({
   const [search, setSearch] = useState("");
   const [guestList, setGuestList] = useState<Guest[]>(guests);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [updatingGenderId, setUpdatingGenderId] = useState<number | null>(
+    null
+  );
+  const [updatingVipId, setUpdatingVipId] = useState<number | null>(null);
   const [status, setStatus] = useState<StatusMessage>(null);
 
   const filteredGuests = useMemo(() => {
@@ -58,6 +62,179 @@ export default function GuestSearch({
       )
     );
   }, [guestList, search]);
+
+  async function updateGuestGender(
+    guest: Guest,
+    newGender: string
+  ) {
+    if (updatingGenderId !== null) {
+      return;
+    }
+
+    setStatus(null);
+    setUpdatingGenderId(guest.id);
+
+    const previousGender = guest.gender ?? null;
+    const genderValue = newGender || null;
+
+    setGuestList((currentGuests) =>
+      currentGuests.map((currentGuest) =>
+        currentGuest.id === guest.id
+          ? {
+            ...currentGuest,
+            gender: genderValue,
+          }
+          : currentGuest
+      )
+    );
+
+    try {
+      const { data: updatedGuest, error } = await supabase
+        .from("guests")
+        .update({
+          gender: genderValue,
+        })
+        .eq("id", guest.id)
+        .select("id, gender")
+        .single();
+
+      if (error) {
+        throw new Error(
+          `Could not update gender: ${error.message}`
+        );
+      }
+
+      if (!updatedGuest) {
+        throw new Error(
+          "Supabase did not return the updated guest."
+        );
+      }
+
+      setGuestList((currentGuests) =>
+        currentGuests.map((currentGuest) =>
+          currentGuest.id === guest.id
+            ? {
+              ...currentGuest,
+              gender: updatedGuest.gender,
+            }
+            : currentGuest
+        )
+      );
+
+      const guestName =
+        guest.name?.trim() || `Guest #${guest.id}`;
+
+      setStatus({
+        type: "success",
+        message: `${guestName}'s gender was updated to ${updatedGuest.gender || "Not set"
+          }.`,
+      });
+
+      router.refresh();
+    } catch (error) {
+      setGuestList((currentGuests) =>
+        currentGuests.map((currentGuest) =>
+          currentGuest.id === guest.id
+            ? {
+              ...currentGuest,
+              gender: previousGender,
+            }
+            : currentGuest
+        )
+      );
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred.";
+
+      console.error("Update guest gender error:", error);
+
+      setStatus({
+        type: "error",
+        message,
+      });
+    } finally {
+      setUpdatingGenderId(null);
+    }
+  }
+
+  async function updateGuestVip(guest: Guest, newVipLevel: string) {
+    if (updatingVipId !== null) {
+      return;
+    }
+
+    setStatus(null);
+    setUpdatingVipId(guest.id);
+
+    const previousVipLevel = guest.vip_level ?? null;
+    const vipValue = newVipLevel || "Regular";
+
+    setGuestList((currentGuests) =>
+      currentGuests.map((currentGuest) =>
+        currentGuest.id === guest.id
+          ? { ...currentGuest, vip_level: vipValue }
+          : currentGuest
+      )
+    );
+
+    try {
+      const { data: updatedGuest, error } = await supabase
+        .from("guests")
+        .update({ vip_level: vipValue })
+        .eq("id", guest.id)
+        .select("id, vip_level")
+        .single();
+
+      if (error) {
+        throw new Error(`Could not update VIP level: ${error.message}`);
+      }
+
+      if (!updatedGuest) {
+        throw new Error("Supabase did not return the updated guest.");
+      }
+
+      setGuestList((currentGuests) =>
+        currentGuests.map((currentGuest) =>
+          currentGuest.id === guest.id
+            ? { ...currentGuest, vip_level: updatedGuest.vip_level }
+            : currentGuest
+        )
+      );
+
+      const guestName = guest.name?.trim() || `Guest #${guest.id}`;
+
+      setStatus({
+        type: "success",
+        message: `${guestName}'s VIP level was updated to ${updatedGuest.vip_level || "Regular"
+          }.`,
+      });
+
+      router.refresh();
+    } catch (error) {
+      setGuestList((currentGuests) =>
+        currentGuests.map((currentGuest) =>
+          currentGuest.id === guest.id
+            ? { ...currentGuest, vip_level: previousVipLevel }
+            : currentGuest
+        )
+      );
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred.";
+
+      console.error("Update guest VIP error:", error);
+
+      setStatus({
+        type: "error",
+        message,
+      });
+    } finally {
+      setUpdatingVipId(null);
+    }
+  }
 
   async function deleteGuest(guest: Guest) {
     if (deletingId !== null) {
@@ -237,6 +414,12 @@ export default function GuestSearch({
               const isDeleting =
                 deletingId === guest.id;
 
+              const isUpdatingGender =
+                updatingGenderId === guest.id;
+
+              const isUpdatingVip =
+                updatingVipId === guest.id;
+
               return (
                 <tr
                   key={guest.id}
@@ -255,11 +438,66 @@ export default function GuestSearch({
                   </td>
 
                   <td className="p-5">
-                    {guest.gender || "-"}
+                    <div className="flex min-w-[130px] flex-col gap-1">
+                      <select
+                        value={guest.gender ?? ""}
+                        onChange={(event) =>
+                          updateGuestGender(
+                            guest,
+                            event.target.value
+                          )
+                        }
+                        disabled={
+                          isUpdatingGender ||
+                          deletingId !== null
+                        }
+                        className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="">
+                          Not set
+                        </option>
+
+                        <option value="Male">
+                          Male
+                        </option>
+
+                        <option value="Female">
+                          Female
+                        </option>
+                      </select>
+
+                      {isUpdatingGender && (
+                        <span className="text-xs text-zinc-400">
+                          Saving...
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   <td className="p-5">
-                    {guest.vip_level || "Regular"}
+                    <div className="flex min-w-[130px] flex-col gap-1">
+                      <select
+                        value={guest.vip_level ?? "Regular"}
+                        onChange={(event) =>
+                          updateGuestVip(guest, event.target.value)
+                        }
+                        disabled={
+                          isUpdatingVip ||
+                          deletingId !== null
+                        }
+                        className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="Regular">Regular</option>
+                        <option value="VIP">VIP</option>
+                        <option value="VVIP">VVIP</option>
+                      </select>
+
+                      {isUpdatingVip && (
+                        <span className="text-xs text-zinc-400">
+                          Saving...
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   <td className="p-5">
@@ -291,7 +529,11 @@ export default function GuestSearch({
                       <button
                         type="button"
                         onClick={() => deleteGuest(guest)}
-                        disabled={deletingId !== null}
+                        disabled={
+                          deletingId !== null ||
+                          updatingGenderId !== null ||
+                          updatingVipId !== null
+                        }
                         className="rounded bg-red-600 px-3 py-2 transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {isDeleting

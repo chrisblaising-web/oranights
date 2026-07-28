@@ -40,9 +40,7 @@ function getGuest(relation: GuestRelation) {
         : relation;
 }
 
-export async function GET(
-    request: NextRequest
-) {
+export async function GET(request: NextRequest) {
     try {
         const supabaseUrl =
             process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -102,10 +100,7 @@ export async function GET(
             accessToken
         );
 
-        if (
-            userError ||
-            !userData.user
-        ) {
+        if (userError || !userData.user) {
             return NextResponse.json(
                 {
                     error:
@@ -137,10 +132,7 @@ export async function GET(
             .eq("id", userData.user.id)
             .maybeSingle();
 
-        if (
-            profileError ||
-            !profile
-        ) {
+        if (profileError || !profile) {
             return NextResponse.json(
                 {
                     error:
@@ -230,15 +222,15 @@ export async function GET(
             .from("guest_list_entries")
             .select(
                 `
-          id,
-          status,
-          created_at,
-          guests (
-            name,
-            vip_level,
-            tag
-          )
-        `
+                    id,
+                    status,
+                    created_at,
+                    guests (
+                        name,
+                        vip_level,
+                        tag
+                    )
+                `
             )
             .eq(
                 "event_id",
@@ -282,6 +274,13 @@ export async function GET(
                     "checked_in"
             );
 
+        const remainingEntries =
+            safeEntries.filter(
+                (entry) =>
+                    entry.status !==
+                    "checked_in"
+            );
+
         const checkedInGuests =
             checkedInEntries.map(
                 (entry) => {
@@ -301,9 +300,43 @@ export async function GET(
                         tag:
                             guest?.tag ||
                             "Regular",
+                        status:
+                            entry.status,
                     };
                 }
             );
+
+        /*
+         * Remaining guest names are private.
+         * Only administrators receive this list.
+         */
+        const remainingGuests =
+            profile.role === "admin"
+                ? remainingEntries.map(
+                    (entry) => {
+                        const guest =
+                            getGuest(
+                                entry.guests as GuestRelation
+                            );
+
+                        return {
+                            entryId:
+                                entry.id,
+                            name:
+                                guest?.name ||
+                                "Unknown guest",
+                            vipLevel:
+                                guest?.vip_level ||
+                                "Regular",
+                            tag:
+                                guest?.tag ||
+                                "Regular",
+                            status:
+                                entry.status,
+                        };
+                    }
+                )
+                : [];
 
         const totalGuests =
             safeEntries.length;
@@ -312,16 +345,35 @@ export async function GET(
             checkedInEntries.length;
 
         const remaining =
-            Math.max(
-                totalGuests - checkedIn,
-                0
-            );
+            remainingEntries.length;
+
+        const attendanceRate =
+            totalGuests > 0
+                ? Math.round(
+                    (checkedIn /
+                        totalGuests) *
+                    100
+                )
+                : 0;
+
+        const noShowRate =
+            totalGuests > 0
+                ? Math.round(
+                    (remaining /
+                        totalGuests) *
+                    100
+                )
+                : 0;
 
         return NextResponse.json({
+            viewerRole:
+                profile.role,
+
             event: {
                 id: activeEvent.id,
                 name: activeEvent.name,
-                venue: activeEvent.venue,
+                venue:
+                    activeEvent.venue,
                 eventDate:
                     activeEvent.event_date,
             },
@@ -330,9 +382,12 @@ export async function GET(
                 totalGuests,
                 checkedIn,
                 remaining,
+                attendanceRate,
+                noShowRate,
             },
 
             checkedInGuests,
+            remainingGuests,
         });
     } catch (error) {
         console.error(

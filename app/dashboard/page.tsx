@@ -34,6 +34,32 @@ type SmsLog = {
     created_at: string;
 };
 
+type EventRecord = {
+    id: number;
+    name: string;
+    venue: string | null;
+    event_date: string;
+    is_active: boolean;
+};
+
+type CampaignForm = {
+    id: number;
+    event_id: number | null;
+    is_active: boolean;
+};
+
+type FormSubmission = {
+    id: number;
+    form_id: number;
+    created_at: string;
+};
+
+type GuestListEntry = {
+    id: number;
+    event_id: number;
+    status: string;
+};
+
 function percentage(value: number, total: number) {
     if (total === 0) return 0;
     return Math.round((value / total) * 100);
@@ -54,6 +80,10 @@ export default async function DashboardPage() {
         { data: guests, error: guestsError },
         { data: reservations, error: reservationsError },
         { data: smsLogs, error: smsLogsError },
+        { data: events, error: eventsError },
+        { data: forms, error: formsError },
+        { data: formSubmissions, error: formSubmissionsError },
+        { data: guestListEntries, error: guestListEntriesError },
     ] = await Promise.all([
         supabase
             .from("guests")
@@ -95,12 +125,52 @@ export default async function DashboardPage() {
                 created_at
             `)
             .order("created_at", { ascending: false }),
+
+        supabase
+            .from("events")
+            .select(`
+                id,
+                name,
+                venue,
+                event_date,
+                is_active
+            `)
+            .order("event_date", { ascending: false }),
+
+        supabase
+            .from("forms")
+            .select(`
+                id,
+                event_id,
+                is_active
+            `),
+
+        supabase
+            .from("form_submissions")
+            .select(`
+                id,
+                form_id,
+                created_at
+            `)
+            .order("created_at", { ascending: false }),
+
+        supabase
+            .from("guest_list_entries")
+            .select(`
+                id,
+                event_id,
+                status
+            `),
     ]);
 
     const error =
         guestsError ||
         reservationsError ||
-        smsLogsError;
+        smsLogsError ||
+        eventsError ||
+        formsError ||
+        formSubmissionsError ||
+        guestListEntriesError;
 
     if (error) {
         console.error("Dashboard loading error:", {
@@ -132,6 +202,75 @@ export default async function DashboardPage() {
     const guestList: Guest[] = guests ?? [];
     const reservationList: Reservation[] = reservations ?? [];
     const smsList: SmsLog[] = (smsLogs ?? []) as SmsLog[];
+    const eventList: EventRecord[] =
+        (events ?? []) as EventRecord[];
+    const formList: CampaignForm[] =
+        (forms ?? []) as CampaignForm[];
+    const submissionList: FormSubmission[] =
+        (formSubmissions ?? []) as FormSubmission[];
+    const guestListEntryList: GuestListEntry[] =
+        (guestListEntries ?? []) as GuestListEntry[];
+
+    const activeEvent =
+        eventList.find(
+            (event) => event.is_active
+        ) ?? null;
+
+    const connectedForms = activeEvent
+        ? formList.filter(
+            (form) =>
+                form.event_id === activeEvent.id
+        )
+        : [];
+
+    const connectedFormIds = new Set(
+        connectedForms.map(
+            (form) => form.id
+        )
+    );
+
+    const activeEventSubmissions =
+        submissionList.filter(
+            (submission) =>
+                connectedFormIds.has(
+                    submission.form_id
+                )
+        );
+
+    const activeEventEntries = activeEvent
+        ? guestListEntryList.filter(
+            (entry) =>
+                entry.event_id === activeEvent.id
+        )
+        : [];
+
+    const nonCancelledEntries =
+        activeEventEntries.filter(
+            (entry) =>
+                entry.status !== "cancelled"
+        );
+
+    const checkedInEntries =
+        nonCancelledEntries.filter(
+            (entry) =>
+                entry.status === "checked_in"
+        );
+
+    const remainingEntries =
+        nonCancelledEntries.filter(
+            (entry) =>
+                entry.status !== "checked_in"
+        );
+
+    const attendanceRate = percentage(
+        checkedInEntries.length,
+        nonCancelledEntries.length
+    );
+
+    const noShowRate = percentage(
+        remainingEntries.length,
+        nonCancelledEntries.length
+    );
 
     const totalGuests = guestList.length;
 
@@ -255,6 +394,30 @@ export default async function DashboardPage() {
 
     const cards = [
         {
+            title: "Connected Forms",
+            value: connectedForms.length,
+            description: activeEvent
+                ? "Forms connected to the active event"
+                : "No active event selected",
+        },
+        {
+            title: "Event Submissions",
+            value: activeEventSubmissions.length,
+            description: activeEvent
+                ? "Submissions from connected forms"
+                : "No active event selected",
+        },
+        {
+            title: "Checked In",
+            value: checkedInEntries.length,
+            description: `${attendanceRate}% attendance rate`,
+        },
+        {
+            title: "Remaining / No-Shows",
+            value: remainingEntries.length,
+            description: `${noShowRate}% no-show rate`,
+        },
+        {
             title: "Total Guests",
             value: totalGuests,
             description: "All contacts in your CRM",
@@ -330,6 +493,84 @@ export default async function DashboardPage() {
                                 </p>
                             </div>
                         ))}
+                    </section>
+
+                    <section className="mt-10 rounded-2xl border border-blue-500/20 bg-blue-500/5 p-6">
+                        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">
+                                    Active Event Workflow
+                                </p>
+
+                                <h2 className="mt-2 text-2xl font-bold">
+                                    {activeEvent
+                                        ? activeEvent.name
+                                        : "No active event"}
+                                </h2>
+
+                                <p className="mt-2 text-sm text-zinc-400">
+                                    {activeEvent
+                                        ? `${activeEvent.venue || "Venue not set"} · ${new Date(
+                                            `${activeEvent.event_date}T12:00:00`
+                                        ).toLocaleDateString("en-CA", {
+                                            year: "numeric",
+                                            month: "long",
+                                            day: "numeric",
+                                        })}`
+                                        : "Create or activate an event to connect forms and track attendance."}
+                                </p>
+                            </div>
+
+                            <div className="flex flex-wrap gap-3">
+                                <Link
+                                    href="/events"
+                                    className="rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-400"
+                                >
+                                    Manage Events
+                                </Link>
+
+                                <Link
+                                    href="/forms"
+                                    className="rounded-lg border border-white/10 px-4 py-2.5 text-sm font-semibold transition hover:bg-white/5"
+                                >
+                                    Campaign Forms
+                                </Link>
+
+                                <Link
+                                    href="/host/check-in"
+                                    className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+                                >
+                                    Check-In & No-Shows
+                                </Link>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                            <SmallStat
+                                label="Connected Forms"
+                                value={connectedForms.length}
+                            />
+
+                            <SmallStat
+                                label="Submissions"
+                                value={activeEventSubmissions.length}
+                            />
+
+                            <SmallStat
+                                label="Guest List"
+                                value={nonCancelledEntries.length}
+                            />
+
+                            <SmallStat
+                                label="Checked In"
+                                value={checkedInEntries.length}
+                            />
+
+                            <SmallStat
+                                label="Remaining"
+                                value={remainingEntries.length}
+                            />
+                        </div>
                     </section>
 
                     <section className="mt-10 grid gap-6 lg:grid-cols-2">
@@ -483,8 +724,8 @@ export default async function DashboardPage() {
 
                                             <span
                                                 className={`w-fit rounded-full px-3 py-1 text-xs font-medium ${sms.status === "failed"
-                                                        ? "bg-red-950 text-red-400"
-                                                        : "bg-green-950 text-green-400"
+                                                    ? "bg-red-950 text-red-400"
+                                                    : "bg-green-950 text-green-400"
                                                     }`}
                                             >
                                                 {sms.status || "unknown"}

@@ -3,7 +3,6 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { parsePhoneNumberFromString } from "libphonenumber-js";
 
 type GuestPurpose =
     | "crm_contact"
@@ -94,26 +93,30 @@ export default function AddGuestPage() {
 
         const digitsOnly = rawPhone.replace(/\D/g, "");
 
-        // Canada and United States: automatically add +1
-        // when the user enters a standard 10-digit number.
-        const candidate =
-            rawPhone.startsWith("+")
-                ? rawPhone
-                : digitsOnly.length === 10
-                    ? `+1${digitsOnly}`
-                    : digitsOnly.length === 11 &&
-                        digitsOnly.startsWith("1")
-                        ? `+${digitsOnly}`
-                        : rawPhone;
-
-        const parsedPhone =
-            parsePhoneNumberFromString(candidate);
-
-        if (!parsedPhone?.isValid()) {
-            return null;
+        // Canada and United States:
+        // automatically convert a standard 10-digit number to E.164.
+        if (digitsOnly.length === 10) {
+            return `+1${digitsOnly}`;
         }
 
-        return parsedPhone.number;
+        // Canada and United States number already containing country code 1.
+        if (
+            digitsOnly.length === 11 &&
+            digitsOnly.startsWith("1")
+        ) {
+            return `+${digitsOnly}`;
+        }
+
+        // International numbers must include "+" and contain 8–15 digits.
+        if (
+            rawPhone.startsWith("+") &&
+            digitsOnly.length >= 8 &&
+            digitsOnly.length <= 15
+        ) {
+            return `+${digitsOnly}`;
+        }
+
+        return null;
     }
 
     async function getAccessToken() {

@@ -5,105 +5,33 @@ import { createServerClient } from "@supabase/ssr";
 
 export const dynamic = "force-dynamic";
 
-type EventPageProps = {
-    params: Promise<{
-        id: string;
-    }>;
-};
-
-type EventRow = {
+type EventRecord = {
     id: number;
     name: string;
-    venue: string;
-    address: string;
+    venue: string | null;
+    address: string | null;
     event_date: string;
     dinner_time: string | null;
-    club_time: string;
+    club_time: string | null;
+    timezone: string | null;
     dress_code: string | null;
     music: string | null;
     host_name: string | null;
+    invitation_message: string | null;
+    reminder_message: string | null;
     is_active: boolean;
 };
 
-type GuestListEntryRow = {
-    id: number;
-    guest_id: number | null;
-    phone: string;
-    status: string;
-    invitation_status: string;
-    reminder_status: string;
-    created_at: string;
-    guests:
-    | {
-        name: string | null;
-        instagram: string | null;
-    }
-    | {
-        name: string | null;
-        instagram: string | null;
-    }[]
-    | null;
-};
-
-function formatDate(dateValue: string) {
-    const date = new Date(`${dateValue}T12:00:00`);
-
-    return new Intl.DateTimeFormat("en-CA", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-    }).format(date);
+function cleanText(
+    value: FormDataEntryValue | null,
+    max = 2000
+) {
+    return typeof value === "string"
+        ? value.trim().slice(0, max)
+        : "";
 }
 
-function formatTime(timeValue: string | null) {
-    if (!timeValue) {
-        return "—";
-    }
-
-    const [hourText, minuteText] = timeValue.split(":");
-    const hour = Number(hourText);
-    const minute = Number(minuteText);
-
-    const date = new Date();
-    date.setHours(hour, minute, 0, 0);
-
-    return new Intl.DateTimeFormat("en-CA", {
-        hour: "numeric",
-        minute: "2-digit",
-    }).format(date);
-}
-
-function maskPhone(phone: string) {
-    const digits = phone.replace(/\D/g, "");
-
-    if (digits.length < 4) {
-        return phone;
-    }
-
-    return `••• ••• ${digits.slice(-4)}`;
-}
-
-function getGuest(entry: GuestListEntryRow) {
-    if (!entry.guests) {
-        return null;
-    }
-
-    return Array.isArray(entry.guests)
-        ? entry.guests[0] || null
-        : entry.guests;
-}
-
-export default async function EventPage({
-    params,
-}: EventPageProps) {
-    const { id } = await params;
-    const eventId = Number(id);
-
-    if (!Number.isInteger(eventId) || eventId <= 0) {
-        notFound();
-    }
-
+async function getSupabase() {
     const cookieStore = await cookies();
 
     const supabaseUrl =
@@ -114,11 +42,11 @@ export default async function EventPage({
 
     if (!supabaseUrl || !supabaseAnonKey) {
         throw new Error(
-            "Missing Supabase public environment variables."
+            "Missing Supabase configuration."
         );
     }
 
-    const supabase = createServerClient(
+    return createServerClient(
         supabaseUrl,
         supabaseAnonKey,
         {
@@ -141,402 +69,462 @@ export default async function EventPage({
                             );
                         }
                     } catch {
-                        // Server components may not always write cookies.
+                        // Server components cannot always set cookies.
                     }
                 },
             },
         }
     );
+}
+
+async function updateEvent(
+    eventId: number,
+    formData: FormData
+) {
+    "use server";
+
+    const supabase = await getSupabase();
 
     const {
         data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-        redirect(`/login?next=/events/${eventId}`);
-    }
-
-    const [
-        { data: eventData, error: eventError },
-        { data: entriesData, error: entriesError },
-    ] = await Promise.all([
-        supabase
-            .from("events")
-            .select(
-                `
-          id,
-          name,
-          venue,
-          address,
-          event_date,
-          dinner_time,
-          club_time,
-          dress_code,
-          music,
-          host_name,
-          is_active
-        `
-            )
-            .eq("id", eventId)
-            .maybeSingle(),
-
-        supabase
-            .from("guest_list_entries")
-            .select(
-                `
-          id,
-          guest_id,
-          phone,
-          status,
-          invitation_status,
-          reminder_status,
-          created_at,
-          guests (
-            name,
-            instagram
-          )
-        `
-            )
-            .eq("event_id", eventId)
-            .order("created_at", {
-                ascending: false,
-            }),
-    ]);
-
-    if (eventError) {
-        console.error("Event detail error:", eventError);
-    }
-
-    if (entriesError) {
-        console.error(
-            "Guest-list detail error:",
-            entriesError
+        redirect(
+            `/login?next=/events/${eventId}/edit`
         );
     }
 
-    if (!eventData) {
+    const name =
+        cleanText(formData.get("name"), 150);
+
+    const venue =
+        cleanText(formData.get("venue"), 150);
+
+    const address =
+        cleanText(formData.get("address"), 300);
+
+    const eventDate =
+        cleanText(formData.get("event_date"), 10);
+
+    const dinnerTime =
+        cleanText(formData.get("dinner_time"), 8);
+
+    const clubTime =
+        cleanText(formData.get("club_time"), 8);
+
+    const dressCode =
+        cleanText(formData.get("dress_code"), 300);
+
+    const music =
+        cleanText(formData.get("music"), 300);
+
+    const hostName =
+        cleanText(formData.get("host_name"), 150);
+
+    const invitationMessage =
+        cleanText(
+            formData.get("invitation_message"),
+            2000
+        );
+
+    const reminderMessage =
+        cleanText(
+            formData.get("reminder_message"),
+            2000
+        );
+
+    const isActive =
+        formData.get("is_active") === "on";
+
+    if (
+        !name ||
+        !venue ||
+        !address ||
+        !eventDate ||
+        !clubTime
+    ) {
+        redirect(
+            `/events/${eventId}/edit?error=${encodeURIComponent(
+                "Name, venue, address, date, and celebration time are required."
+            )}`
+        );
+    }
+
+    if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)
+    ) {
+        redirect(
+            `/events/${eventId}/edit?error=${encodeURIComponent(
+                "Invalid event date."
+            )}`
+        );
+    }
+
+    if (isActive) {
+        const { error: deactivateError } =
+            await supabase
+                .from("events")
+                .update({
+                    is_active: false,
+                })
+                .neq("id", eventId);
+
+        if (deactivateError) {
+            redirect(
+                `/events/${eventId}/edit?error=${encodeURIComponent(
+                    deactivateError.message
+                )}`
+            );
+        }
+    }
+
+    const { error } = await supabase
+        .from("events")
+        .update({
+            name,
+            venue,
+            address,
+            event_date: eventDate,
+            dinner_time: dinnerTime || null,
+            club_time: clubTime,
+            timezone: "America/Toronto",
+            dress_code: dressCode || null,
+            music: music || null,
+            host_name: hostName || null,
+            invitation_message:
+                invitationMessage || null,
+            reminder_message:
+                reminderMessage || null,
+            is_active: isActive,
+        })
+        .eq("id", eventId);
+
+    if (error) {
+        redirect(
+            `/events/${eventId}/edit?error=${encodeURIComponent(
+                error.message
+            )}`
+        );
+    }
+
+    redirect(
+        `/events?success=${encodeURIComponent(
+            "Event updated successfully."
+        )}`
+    );
+}
+
+type EditEventPageProps = {
+    params: Promise<{
+        id: string;
+    }>;
+    searchParams: Promise<{
+        error?: string;
+    }>;
+};
+
+export default async function EditEventPage({
+    params,
+    searchParams,
+}: EditEventPageProps) {
+    const { id } = await params;
+    const query = await searchParams;
+
+    const eventId = Number(id);
+
+    if (
+        !Number.isInteger(eventId) ||
+        eventId <= 0
+    ) {
         notFound();
     }
 
-    const event = eventData as EventRow;
-    const entries =
-        (entriesData || []) as GuestListEntryRow[];
+    const supabase = await getSupabase();
 
-    const totalGuests = entries.filter(
-        (entry) => entry.status !== "cancelled"
-    ).length;
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
 
-    const checkedIn = entries.filter(
-        (entry) => entry.status === "checked_in"
-    ).length;
+    if (!user) {
+        redirect(
+            `/login?next=/events/${eventId}/edit`
+        );
+    }
 
-    const invitesSent = entries.filter(
-        (entry) =>
-            entry.invitation_status === "sent"
-    ).length;
+    const { data, error } = await supabase
+        .from("events")
+        .select(`
+            id,
+            name,
+            venue,
+            address,
+            event_date,
+            dinner_time,
+            club_time,
+            timezone,
+            dress_code,
+            music,
+            host_name,
+            invitation_message,
+            reminder_message,
+            is_active
+        `)
+        .eq("id", eventId)
+        .maybeSingle();
 
-    const remindersSent = entries.filter(
-        (entry) =>
-            entry.reminder_status === "sent"
-    ).length;
+    if (error) {
+        throw new Error(
+            `Unable to load event: ${error.message}`
+        );
+    }
+
+    if (!data) {
+        notFound();
+    }
+
+    const event = data as EventRecord;
+
+    const action = updateEvent.bind(
+        null,
+        eventId
+    );
 
     return (
         <main className="min-h-screen bg-black px-6 py-8 text-white md:px-10">
-            <div className="mx-auto max-w-7xl">
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="mx-auto max-w-4xl">
+                <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                         <p className="text-sm uppercase tracking-[0.3em] text-zinc-500">
                             Ora CRM
                         </p>
 
-                        <div className="mt-2 flex flex-wrap items-center gap-3">
-                            <h1 className="text-4xl font-bold">
-                                {event.name}
-                            </h1>
-
-                            <span
-                                className={`rounded-full px-3 py-1 text-xs font-semibold ${event.is_active
-                                        ? "bg-emerald-950 text-emerald-300"
-                                        : "bg-zinc-800 text-zinc-400"
-                                    }`}
-                            >
-                                {event.is_active
-                                    ? "Active"
-                                    : "Inactive"}
-                            </span>
-                        </div>
-
-                        <p className="mt-3 text-xl text-zinc-200">
-                            {formatDate(event.event_date)}
-                        </p>
+                        <h1 className="mt-2 text-4xl font-bold">
+                            Edit Event
+                        </h1>
 
                         <p className="mt-2 text-zinc-400">
-                            {event.venue} · {event.address}
+                            Update the event name, venue, date, times, and messages.
                         </p>
-
-                        <p className="mt-1 text-zinc-400">
-                            Lounge dinner:{" "}
-                            {formatTime(event.dinner_time)} ·
-                            Celebration:{" "}
-                            {formatTime(event.club_time)}
-                        </p>
-
-                        {event.music ? (
-                            <p className="mt-1 text-zinc-400">
-                                {event.music}
-                            </p>
-                        ) : null}
-
-                        {event.dress_code ? (
-                            <p className="mt-1 text-zinc-400">
-                                {event.dress_code}
-                            </p>
-                        ) : null}
-
-                        {event.host_name ? (
-                            <p className="mt-1 text-zinc-400">
-                                Hosted by {event.host_name}
-                            </p>
-                        ) : null}
                     </div>
 
-                    <div className="flex flex-wrap gap-3">
-                        <Link
-                            href="/events"
-                            className="rounded-xl border border-zinc-700 px-4 py-2 font-semibold transition hover:bg-zinc-900"
-                        >
-                            Back to Events
-                        </Link>
-
-                        <Link
-                            href={`/events/${event.id}/edit`}
-                            className="rounded-xl bg-white px-4 py-2 font-semibold text-black transition hover:bg-zinc-200"
-                        >
-                            Edit Event
-                        </Link>
-                    </div>
+                    <Link
+                        href="/events"
+                        className="rounded-xl border border-zinc-700 px-4 py-2 font-semibold transition hover:bg-zinc-900"
+                    >
+                        Back to Events
+                    </Link>
                 </div>
 
-                <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <StatCard
-                        label="Guest List"
-                        value={totalGuests}
-                    />
-
-                    <StatCard
-                        label="Checked In"
-                        value={checkedIn}
-                    />
-
-                    <StatCard
-                        label="Invites Sent"
-                        value={invitesSent}
-                    />
-
-                    <StatCard
-                        label="Reminders Sent"
-                        value={remindersSent}
-                    />
-                </section>
-
-                <section className="mt-8 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">
-                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-800 px-6 py-5">
-                        <div>
-                            <h2 className="text-2xl font-semibold">
-                                Guest List
-                            </h2>
-
-                            <p className="mt-1 text-sm text-zinc-400">
-                                One registration per phone number for this event.
-                            </p>
-                        </div>
+                {query.error ? (
+                    <div className="mt-6 rounded-2xl border border-red-900 bg-red-950/40 p-4 text-red-200">
+                        {decodeURIComponent(
+                            query.error
+                        )}
                     </div>
+                ) : null}
 
-                    {entriesError ? (
-                        <div className="p-6 text-red-300">
-                            The guest list could not be loaded.
+                <form
+                    action={action}
+                    className="mt-8 space-y-8"
+                >
+                    <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+                        <h2 className="text-xl font-semibold">
+                            Event details
+                        </h2>
+
+                        <div className="mt-5 grid gap-5 md:grid-cols-2">
+                            <Field
+                                label="Event name"
+                                name="name"
+                                defaultValue={event.name}
+                                required
+                            />
+
+                            <Field
+                                label="Event date"
+                                name="event_date"
+                                type="date"
+                                defaultValue={event.event_date}
+                                required
+                            />
+
+                            <Field
+                                label="Venue"
+                                name="venue"
+                                defaultValue={event.venue || ""}
+                                required
+                            />
+
+                            <Field
+                                label="Address"
+                                name="address"
+                                defaultValue={event.address || ""}
+                                required
+                            />
+
+                            <Field
+                                label="Lounge dinner starts"
+                                name="dinner_time"
+                                type="time"
+                                defaultValue={
+                                    event.dinner_time || ""
+                                }
+                            />
+
+                            <Field
+                                label="Celebration starts"
+                                name="club_time"
+                                type="time"
+                                defaultValue={
+                                    event.club_time || ""
+                                }
+                                required
+                            />
+
+                            <Field
+                                label="Dress code"
+                                name="dress_code"
+                                defaultValue={
+                                    event.dress_code || ""
+                                }
+                            />
+
+                            <Field
+                                label="Music"
+                                name="music"
+                                defaultValue={
+                                    event.music || ""
+                                }
+                            />
+
+                            <Field
+                                label="Host"
+                                name="host_name"
+                                defaultValue={
+                                    event.host_name || ""
+                                }
+                            />
                         </div>
-                    ) : null}
 
-                    {!entriesError && entries.length === 0 ? (
-                        <div className="p-10 text-center">
-                            <p className="text-lg font-medium">
-                                No registrations yet
-                            </p>
+                        <label className="mt-6 flex items-center gap-3 rounded-xl border border-zinc-800 bg-black p-4">
+                            <input
+                                type="checkbox"
+                                name="is_active"
+                                defaultChecked={
+                                    event.is_active
+                                }
+                                className="h-5 w-5"
+                            />
 
-                            <p className="mt-2 text-zinc-400">
-                                Guests will appear here after joining the
-                                public event form.
-                            </p>
+                            <span>
+                                <span className="block font-semibold">
+                                    Active event
+                                </span>
+
+                                <span className="mt-1 block text-sm text-zinc-500">
+                                    The active event is used by the dashboard and default check-in workflow.
+                                </span>
+                            </span>
+                        </label>
+                    </section>
+
+                    <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+                        <h2 className="text-xl font-semibold">
+                            SMS notifications
+                        </h2>
+
+                        <div className="mt-5 space-y-5">
+                            <TextArea
+                                label="Immediate invitation"
+                                name="invitation_message"
+                                defaultValue={
+                                    event.invitation_message || ""
+                                }
+                            />
+
+                            <TextArea
+                                label="Event-day reminder"
+                                name="reminder_message"
+                                defaultValue={
+                                    event.reminder_message || ""
+                                }
+                            />
                         </div>
-                    ) : null}
+                    </section>
 
-                    {entries.length > 0 ? (
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-zinc-800">
-                                <thead className="bg-black">
-                                    <tr>
-                                        <TableHeading>Name</TableHeading>
-                                        <TableHeading>Phone</TableHeading>
-                                        <TableHeading>Instagram</TableHeading>
-                                        <TableHeading>Invitation</TableHeading>
-                                        <TableHeading>Reminder</TableHeading>
-                                        <TableHeading>Status</TableHeading>
-                                        <TableHeading>Registered</TableHeading>
-                                    </tr>
-                                </thead>
+                    <div className="flex flex-wrap gap-3">
+                        <button
+                            type="submit"
+                            className="rounded-xl bg-white px-6 py-3 font-semibold text-black transition hover:bg-zinc-200"
+                        >
+                            Save Changes
+                        </button>
 
-                                <tbody className="divide-y divide-zinc-800">
-                                    {entries.map((entry) => {
-                                        const guest = getGuest(entry);
-
-                                        return (
-                                            <tr
-                                                key={entry.id}
-                                                className="hover:bg-zinc-900/60"
-                                            >
-                                                <TableCell>
-                                                    {guest?.name || "Unknown guest"}
-                                                </TableCell>
-
-                                                <TableCell>
-                                                    {maskPhone(entry.phone)}
-                                                </TableCell>
-
-                                                <TableCell>
-                                                    {guest?.instagram
-                                                        ? guest.instagram.startsWith("@")
-                                                            ? guest.instagram
-                                                            : `@${guest.instagram}`
-                                                        : "—"}
-                                                </TableCell>
-
-                                                <TableCell>
-                                                    <StatusBadge
-                                                        value={
-                                                            entry.invitation_status
-                                                        }
-                                                    />
-                                                </TableCell>
-
-                                                <TableCell>
-                                                    <StatusBadge
-                                                        value={
-                                                            entry.reminder_status
-                                                        }
-                                                    />
-                                                </TableCell>
-
-                                                <TableCell>
-                                                    <StatusBadge
-                                                        value={entry.status}
-                                                    />
-                                                </TableCell>
-
-                                                <TableCell>
-                                                    {new Intl.DateTimeFormat(
-                                                        "en-CA",
-                                                        {
-                                                            month: "short",
-                                                            day: "numeric",
-                                                            hour: "numeric",
-                                                            minute: "2-digit",
-                                                        }
-                                                    ).format(
-                                                        new Date(entry.created_at)
-                                                    )}
-                                                </TableCell>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : null}
-                </section>
+                        <Link
+                            href="/events"
+                            className="rounded-xl border border-zinc-700 px-6 py-3 font-semibold transition hover:bg-zinc-900"
+                        >
+                            Cancel
+                        </Link>
+                    </div>
+                </form>
             </div>
         </main>
     );
 }
 
-function StatCard({
+function Field({
     label,
-    value,
+    name,
+    type = "text",
+    defaultValue,
+    required = false,
 }: {
     label: string;
-    value: number;
+    name: string;
+    type?: string;
+    defaultValue?: string;
+    required?: boolean;
 }) {
     return (
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-            <p className="text-3xl font-bold">{value}</p>
-            <p className="mt-2 text-sm uppercase tracking-wide text-zinc-500">
+        <label className="block">
+            <span className="mb-2 block text-sm font-medium text-zinc-300">
                 {label}
-            </p>
-        </div>
+            </span>
+
+            <input
+                name={name}
+                type={type}
+                defaultValue={defaultValue}
+                required={required}
+                className="w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 text-white outline-none transition focus:border-zinc-400"
+            />
+        </label>
     );
 }
 
-function TableHeading({
-    children,
+function TextArea({
+    label,
+    name,
+    defaultValue,
 }: {
-    children: React.ReactNode;
+    label: string;
+    name: string;
+    defaultValue: string;
 }) {
     return (
-        <th className="whitespace-nowrap px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            {children}
-        </th>
-    );
-}
+        <label className="block">
+            <span className="mb-2 block text-sm font-medium text-zinc-300">
+                {label}
+            </span>
 
-function TableCell({
-    children,
-}: {
-    children: React.ReactNode;
-}) {
-    return (
-        <td className="whitespace-nowrap px-5 py-4 text-sm text-zinc-200">
-            {children}
-        </td>
-    );
-}
-
-function StatusBadge({
-    value,
-}: {
-    value: string;
-}) {
-    const normalized = value.toLowerCase();
-
-    let classes =
-        "bg-zinc-800 text-zinc-300";
-
-    if (
-        normalized === "sent" ||
-        normalized === "confirmed" ||
-        normalized === "checked_in"
-    ) {
-        classes =
-            "bg-emerald-950 text-emerald-300";
-    } else if (
-        normalized === "failed" ||
-        normalized === "cancelled" ||
-        normalized === "no_show"
-    ) {
-        classes =
-            "bg-red-950 text-red-300";
-    } else if (
-        normalized === "pending" ||
-        normalized === "processing"
-    ) {
-        classes =
-            "bg-amber-950 text-amber-300";
-    }
-
-    return (
-        <span
-            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ${classes}`}
-        >
-            {value.replaceAll("_", " ")}
-        </span>
+            <textarea
+                name={name}
+                defaultValue={defaultValue}
+                rows={9}
+                className="w-full resize-y rounded-xl border border-zinc-700 bg-black px-4 py-3 text-white outline-none transition focus:border-zinc-400"
+            />
+        </label>
     );
 }

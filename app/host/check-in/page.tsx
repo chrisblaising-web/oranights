@@ -47,6 +47,8 @@ type EventStats = {
     totalGuests: number;
     checkedIn: number;
     remaining: number;
+    attendanceRate: number;
+    noShowRate: number;
 };
 
 type CheckedInGuest = {
@@ -56,10 +58,20 @@ type CheckedInGuest = {
     tag: string;
 };
 
+type RemainingGuest = {
+    entryId: number;
+    name: string;
+    vipLevel: string;
+    tag: string;
+    status: string;
+};
+
 type EventStatusResponse = {
+    viewerRole?: "admin" | "host";
     event?: EventInfo;
     stats?: EventStats;
     checkedInGuests?: CheckedInGuest[];
+    remainingGuests?: RemainingGuest[];
     error?: string;
 };
 
@@ -130,12 +142,22 @@ export default function HostCheckInPage() {
             totalGuests: 0,
             checkedIn: 0,
             remaining: 0,
+            attendanceRate: 0,
+            noShowRate: 0,
         });
 
     const [
         checkedInGuests,
         setCheckedInGuests,
     ] = useState<CheckedInGuest[]>([]);
+
+    const [viewerRole, setViewerRole] =
+        useState<"admin" | "host">("host");
+
+    const [
+        remainingGuests,
+        setRemainingGuests,
+    ] = useState<RemainingGuest[]>([]);
 
     const [loading, setLoading] =
         useState(false);
@@ -238,16 +260,26 @@ export default function HostCheckInPage() {
                     result.event ?? null
                 );
 
+                setViewerRole(
+                    result.viewerRole ?? "host"
+                );
+
                 setStats(
                     result.stats ?? {
                         totalGuests: 0,
                         checkedIn: 0,
                         remaining: 0,
+                        attendanceRate: 0,
+                        noShowRate: 0,
                     }
                 );
 
                 setCheckedInGuests(
                     result.checkedInGuests ?? []
+                );
+
+                setRemainingGuests(
+                    result.remainingGuests ?? []
                 );
             } catch (error) {
                 console.error(
@@ -1182,6 +1214,117 @@ export default function HostCheckInPage() {
                     >
                         Search Another Guest
                     </button>
+                ) : null}
+
+                {viewerRole === "admin" ? (
+                    <section className="mt-6 rounded-3xl border border-amber-500/20 bg-amber-500/5 p-5">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">
+                                    Admin Only
+                                </p>
+
+                                <h2 className="mt-2 text-xl font-bold">
+                                    Remaining / No-Show Guests
+                                </h2>
+
+                                <p className="mt-1 text-sm text-zinc-400">
+                                    Guests who have not checked in to the active event.
+                                </p>
+                            </div>
+
+                            <span className="rounded-full bg-amber-500/15 px-3 py-1 text-sm font-bold text-amber-300">
+                                {remainingGuests.length}
+                            </span>
+                        </div>
+
+                        <div className="mt-5 grid grid-cols-2 gap-3">
+                            <div className="rounded-2xl border border-white/10 bg-black p-4">
+                                <p className="text-2xl font-bold">
+                                    {stats.attendanceRate}%
+                                </p>
+
+                                <p className="mt-1 text-xs text-zinc-500">
+                                    Attendance Rate
+                                </p>
+                            </div>
+
+                            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
+                                <p className="text-2xl font-bold text-amber-300">
+                                    {stats.noShowRate}%
+                                </p>
+
+                                <p className="mt-1 text-xs text-amber-200/70">
+                                    No-Show Rate
+                                </p>
+                            </div>
+                        </div>
+
+                        {remainingGuests.length === 0 ? (
+                            <div className="mt-5 rounded-2xl border border-dashed border-emerald-500/20 p-6 text-center">
+                                <p className="text-sm text-emerald-300">
+                                    Everyone has checked in.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="mt-5 space-y-3">
+                                {remainingGuests.map(
+                                    (guest, index) => (
+                                        <div
+                                            key={guest.entryId}
+                                            className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black p-4"
+                                        >
+                                            <div className="flex min-w-0 items-center gap-3">
+                                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-sm font-bold text-amber-300">
+                                                    {index + 1}
+                                                </div>
+
+                                                <div className="min-w-0">
+                                                    <p className="truncate font-semibold">
+                                                        {guest.name}
+                                                    </p>
+
+                                                    <p className="mt-1 text-xs text-zinc-500">
+                                                        {guest.vipLevel}
+
+                                                        {guest.tag &&
+                                                            guest.tag !== guest.vipLevel
+                                                            ? ` · ${guest.tag}`
+                                                            : ""}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-shrink-0 flex-col items-end gap-2">
+                                                <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-300">
+                                                    Not Checked In
+                                                </span>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        void handleCheckIn(
+                                                            guest.entryId
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        checkingInId ===
+                                                        guest.entryId
+                                                    }
+                                                    className="min-h-11 rounded-xl bg-white px-4 text-xs font-bold text-black transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    {checkingInId ===
+                                                        guest.entryId
+                                                        ? "Checking In..."
+                                                        : "Check In"}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )
+                                )}
+                            </div>
+                        )}
+                    </section>
                 ) : null}
 
                 <section className="mt-6 rounded-3xl border border-white/10 bg-zinc-950 p-5">
