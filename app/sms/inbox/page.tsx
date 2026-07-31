@@ -123,10 +123,15 @@ export default function SmsInboxPage() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+
     void loadMessages(true);
 
+    const channelName =
+      `sms-inbox-realtime-${crypto.randomUUID()}`;
+
     const channel = supabase
-      .channel("sms-inbox-realtime")
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
@@ -135,14 +140,24 @@ export default function SmsInboxPage() {
           table: "sms_messages",
         },
         (payload) => {
-          const insertedMessage = payload.new as SmsMessage;
+          if (!active) {
+            return;
+          }
+
+          const insertedMessage =
+            payload.new as SmsMessage;
 
           setMessages((currentMessages) =>
-            upsertMessage(currentMessages, insertedMessage)
+            upsertMessage(
+              currentMessages,
+              insertedMessage
+            )
           );
 
           setSelectedPhone(
-            (currentPhone) => currentPhone || insertedMessage.phone
+            (currentPhone) =>
+              currentPhone ||
+              insertedMessage.phone
           );
         }
       )
@@ -154,8 +169,15 @@ export default function SmsInboxPage() {
           table: "sms_messages",
         },
         (payload) => {
+          if (!active) {
+            return;
+          }
+
           setMessages((currentMessages) =>
-            upsertMessage(currentMessages, payload.new as SmsMessage)
+            upsertMessage(
+              currentMessages,
+              payload.new as SmsMessage
+            )
           );
         }
       )
@@ -167,32 +189,68 @@ export default function SmsInboxPage() {
           table: "sms_messages",
         },
         (payload) => {
-          const deletedMessage = payload.old as Partial<SmsMessage>;
+          if (!active) {
+            return;
+          }
 
-          if (typeof deletedMessage.id !== "number") {
+          const deletedMessage =
+            payload.old as Partial<SmsMessage>;
+
+          if (
+            typeof deletedMessage.id !==
+            "number"
+          ) {
             return;
           }
 
           setMessages((currentMessages) =>
             currentMessages.filter(
-              (message) => message.id !== deletedMessage.id
+              (message) =>
+                message.id !==
+                deletedMessage.id
             )
           );
         }
       )
-      .subscribe((status) => {
+      .subscribe((status, error) => {
+        if (!active) {
+          return;
+        }
+
         if (status === "CHANNEL_ERROR") {
-          console.error("SMS inbox realtime channel failed.");
+          console.warn(
+            "SMS inbox realtime unavailable; polling remains active.",
+            error
+          );
+        }
+
+        if (status === "TIMED_OUT") {
+          console.warn(
+            "SMS inbox realtime timed out; polling remains active."
+          );
         }
       });
 
-    const backupRefresh = window.setInterval(() => {
-      void loadMessages(false);
-    }, 30000);
+    const backupRefresh =
+      window.setInterval(() => {
+        if (active) {
+          void loadMessages(false);
+        }
+      }, 30000);
 
     return () => {
-      window.clearInterval(backupRefresh);
-      void supabase.removeChannel(channel);
+      active = false;
+      window.clearInterval(
+        backupRefresh
+      );
+
+      void channel.unsubscribe().finally(
+        () => {
+          void supabase.removeChannel(
+            channel
+          );
+        }
+      );
     };
   }, [loadMessages]);
 
@@ -391,8 +449,8 @@ export default function SmsInboxPage() {
 
         <div
           className={`min-h-0 flex-1 ${mobileConversationOpen
-              ? "p-0"
-              : "p-0 lg:p-6"
+            ? "p-0"
+            : "p-0 lg:p-6"
             }`}
         >
           {notice && (
@@ -406,15 +464,15 @@ export default function SmsInboxPage() {
 
           <div
             className={`min-h-0 overflow-hidden bg-white/[0.03] ${notice
-                ? "h-[calc(100%-76px)] lg:h-[calc(100%-68px)]"
-                : "h-full"
+              ? "h-[calc(100%-76px)] lg:h-[calc(100%-68px)]"
+              : "h-full"
               } lg:rounded-2xl lg:border lg:border-white/10 lg:shadow-2xl`}
           >
             <div className="grid h-full min-h-0 lg:grid-cols-[360px_minmax(0,1fr)]">
               <div
                 className={`min-h-0 ${mobileConversationOpen
-                    ? "hidden lg:block"
-                    : "block"
+                  ? "hidden lg:block"
+                  : "block"
                   }`}
               >
                 <ConversationList
@@ -431,8 +489,8 @@ export default function SmsInboxPage() {
 
               <section
                 className={`${mobileConversationOpen
-                    ? "flex"
-                    : "hidden lg:flex"
+                  ? "flex"
+                  : "hidden lg:flex"
                   } min-h-0 min-w-0 flex-col overflow-hidden`}
               >
                 <ChatWindow

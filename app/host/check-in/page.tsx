@@ -18,12 +18,19 @@ type EventInfo = {
 };
 
 type GuestResult = {
-    entryId: number;
+    entryId: number | null;
+    reservationId: number | null;
+    source: "guest_list" | "reservation";
     name: string;
+    phoneLast4: string;
     vipLevel: string;
     tag: string;
     status: string;
     checkedIn: boolean;
+    reservationType: string | null;
+    partySize: number | null;
+    reservationTime: string | null;
+    tableNumber: string | null;
 };
 
 type SearchResponse = {
@@ -457,10 +464,32 @@ export default function HostCheckInPage() {
     }
 
     async function handleCheckIn(
-        entryId: number
+        target: number | GuestResult
     ) {
+        const entryId =
+            typeof target === "number"
+                ? target
+                : target.entryId;
+
+        const reservationId =
+            typeof target === "number"
+                ? null
+                : target.reservationId;
+
+        const requestId =
+            entryId ??
+            reservationId;
+
+        if (!requestId) {
+            setMessageType("error");
+            setMessage(
+                "This guest cannot be checked in."
+            );
+            return;
+        }
+
         setMessage("");
-        setCheckingInId(entryId);
+        setCheckingInId(requestId);
 
         try {
             const accessToken =
@@ -478,6 +507,8 @@ export default function HostCheckInPage() {
                     },
                     body: JSON.stringify({
                         entryId,
+                        reservationId,
+                        action: "check_in",
                     }),
                 }
             );
@@ -505,15 +536,28 @@ export default function HostCheckInPage() {
             setGuests(
                 (currentGuests) =>
                     currentGuests.map(
-                        (guest) =>
-                            guest.entryId === entryId
+                        (guest) => {
+                            const matches =
+                                typeof target === "number"
+                                    ? guest.entryId === target
+                                    : guest.entryId ===
+                                    target.entryId &&
+                                    guest.reservationId ===
+                                    target.reservationId;
+
+                            return matches
                                 ? {
                                     ...guest,
+                                    entryId:
+                                        result.guest
+                                            ?.entryId ??
+                                        guest.entryId,
                                     status:
                                         "checked_in",
                                     checkedIn: true,
                                 }
-                                : guest
+                                : guest;
+                        }
                     )
             );
 
@@ -1138,9 +1182,7 @@ export default function HostCheckInPage() {
                         {guests.map(
                             (guest) => (
                                 <article
-                                    key={
-                                        guest.entryId
-                                    }
+                                    key={`${guest.source}-${guest.entryId ?? guest.reservationId}`}
                                     className="rounded-3xl border border-white/10 bg-zinc-950 p-5"
                                 >
                                     <div className="flex items-start justify-between gap-4">
@@ -1162,6 +1204,35 @@ export default function HostCheckInPage() {
                                                     </span>
                                                 ) : null}
                                             </div>
+
+                                            {guest.source ===
+                                                "reservation" ? (
+                                                <div className="mt-3 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-3 text-sm">
+                                                    <p className="font-bold text-blue-200">
+                                                        {guest.reservationType ||
+                                                            "Reservation"}
+                                                    </p>
+
+                                                    <p className="mt-1 text-blue-100/80">
+                                                        Party of{" "}
+                                                        {guest.partySize ||
+                                                            1}
+
+                                                        {guest.reservationTime
+                                                            ? ` · ${guest.reservationTime}`
+                                                            : ""}
+
+                                                        {guest.tableNumber
+                                                            ? ` · Table ${guest.tableNumber}`
+                                                            : ""}
+                                                    </p>
+
+                                                    <p className="mt-1 text-xs text-blue-200/60">
+                                                        Phone ending in{" "}
+                                                        {guest.phoneLast4}
+                                                    </p>
+                                                </div>
+                                            ) : null}
                                         </div>
 
                                         <span
@@ -1181,11 +1252,12 @@ export default function HostCheckInPage() {
                                         disabled={
                                             guest.checkedIn ||
                                             checkingInId ===
-                                            guest.entryId
+                                            (guest.entryId ??
+                                                guest.reservationId)
                                         }
                                         onClick={() =>
                                             void handleCheckIn(
-                                                guest.entryId
+                                                guest
                                             )
                                         }
                                         className={`mt-5 h-14 w-full rounded-xl px-5 text-base font-bold transition active:scale-[0.98] disabled:cursor-not-allowed ${guest.checkedIn
@@ -1194,7 +1266,8 @@ export default function HostCheckInPage() {
                                             }`}
                                     >
                                         {checkingInId ===
-                                            guest.entryId
+                                            (guest.entryId ??
+                                                guest.reservationId)
                                             ? "Checking In..."
                                             : guest.checkedIn
                                                 ? "Already Checked In"
