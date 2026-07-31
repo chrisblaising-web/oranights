@@ -248,10 +248,7 @@ export async function POST(
          * Resolve the reservation to the same
          * guest + event check-in system.
          */
-        if (
-            !entryId &&
-            reservationId
-        ) {
+        if (reservationId) {
             const {
                 data: reservation,
                 error: reservationError,
