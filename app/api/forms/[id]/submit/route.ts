@@ -302,6 +302,17 @@ function isValidDate(value: string) {
   return !Number.isNaN(date.getTime());
 }
 
+function parsePartySize(value: unknown) {
+  const normalized = cleanText(value, 10).replace(/\+/g, "");
+  const partySize = Number.parseInt(normalized, 10);
+
+  if (!Number.isInteger(partySize) || partySize < 1) {
+    return 1;
+  }
+
+  return Math.min(partySize, 50);
+}
+
 function isEmptyValue(value: unknown) {
   if (
     value === null ||
@@ -1069,6 +1080,10 @@ export async function POST(
       10
     );
 
+    const partySize = parsePartySize(
+      cleanSubmissionData.party_size
+    );
+
 
     if (
       name &&
@@ -1452,12 +1467,104 @@ export async function POST(
           "Event workflow lookup error:",
           eventError
         );
-      } else if (
-        eventData &&
-        eventData.is_active
-      ) {
+      } else if (eventData) {
         const event =
           eventData as EventRecord;
+
+        /*
+          Create or update the pending reservation BEFORE reminder logic.
+          This ensures a missing reminder schedule cannot block reservations.
+        */
+        if (partySize >= 2) {
+          const reservationNotes =
+            `Automatically created from ${form.title}. Contact the guest to confirm Dinner or Club details.`;
+
+          const {
+            data: existingReservation,
+            error: reservationLookupError,
+          } = await supabase
+            .from("reservations")
+            .select("id,status")
+            .eq("guest_id", guestId)
+            .eq("event_id", event.id)
+            .neq("status", "Cancelled")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (reservationLookupError) {
+            console.error(
+              "Reservation lookup error:",
+              reservationLookupError
+            );
+
+            throw new Error(
+              `Reservation lookup failed: ${reservationLookupError.message}`
+            );
+          }
+
+          if (!existingReservation) {
+            const {
+              data: createdReservation,
+              error: reservationCreateError,
+            } = await supabase
+              .from("reservations")
+              .insert({
+                guest_id: guestId,
+                event_id: event.id,
+                reservation_date: event.event_date,
+                reservation_time: null,
+                party_size: partySize,
+                table_number: null,
+                reservation_type: "Guest List",
+                status: "Pending",
+                notes: reservationNotes,
+              })
+              .select("id")
+              .single();
+
+            if (reservationCreateError) {
+              console.error(
+                "Automatic reservation creation error:",
+                reservationCreateError
+              );
+
+              throw new Error(
+                `Reservation creation failed: ${reservationCreateError.message}`
+              );
+            }
+
+            console.log("Automatic reservation created:", {
+              reservationId: createdReservation.id,
+              guestId,
+              eventId: event.id,
+              partySize,
+            });
+          } else if (existingReservation.status === "Pending") {
+            const {
+              error: reservationUpdateError,
+            } = await supabase
+              .from("reservations")
+              .update({
+                reservation_date: event.event_date,
+                party_size: partySize,
+                reservation_type: "Guest List",
+                notes: reservationNotes,
+              })
+              .eq("id", existingReservation.id);
+
+            if (reservationUpdateError) {
+              console.error(
+                "Automatic reservation update error:",
+                reservationUpdateError
+              );
+
+              throw new Error(
+                `Reservation update failed: ${reservationUpdateError.message}`
+              );
+            }
+          }
+        }
 
         const reminderScheduledFor =
           eventDayNoonUtc(
@@ -1475,6 +1582,7 @@ export async function POST(
             .select(
               `
                 id,
+                party_size,
                 invitation_status,
                 invitation_sent_at,
                 sms_opted_out
@@ -1506,6 +1614,7 @@ export async function POST(
                 form_submission_id:
                   submission.id,
                 phone: phone || null,
+                party_size: partySize,
                 status: "confirmed",
                 invitation_status:
                   "pending",
@@ -1518,6 +1627,7 @@ export async function POST(
               .select(
                 `
                   id,
+                  party_size,
                   invitation_status,
                   invitation_sent_at,
                   sms_opted_out
@@ -1533,6 +1643,29 @@ export async function POST(
             } else {
               guestListEntry =
                 createdEntry;
+            }
+          }
+
+          if (
+            guestListEntry &&
+            guestListEntry.party_size !== partySize
+          ) {
+            const { error: partySizeUpdateError } =
+              await supabase
+                .from("guest_list_entries")
+                .update({
+                  party_size: partySize,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", guestListEntry.id);
+
+            if (partySizeUpdateError) {
+              console.error(
+                "Guest-list party size update error:",
+                partySizeUpdateError
+              );
+            } else {
+              guestListEntry.party_size = partySize;
             }
           }
 
@@ -1692,7 +1825,9 @@ export async function POST(
       {
         success: false,
         error:
-          "The submission could not be processed.",
+          error instanceof Error
+            ? error.message
+            : "The submission could not be processed.",
       },
       500
     );

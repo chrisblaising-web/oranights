@@ -46,6 +46,11 @@ const navItems: NavItem[] = [
         icon: "➕",
     },
     {
+        href: "/reservations",
+        label: "Reservations",
+        icon: "🍽️",
+    },
+    {
         href: "/sms",
         label: "SMS Campaigns",
         icon: "📲",
@@ -204,7 +209,7 @@ export default function Sidebar() {
                     </p>
 
                     <p className="mt-2 text-sm leading-6 text-zinc-300">
-                        Event → Form → Guest List → Check-In → No-Show Report
+                        Event → Form → Guest List → Reservation → Check-In → No-Show Report
                     </p>
                 </div>
             </div>

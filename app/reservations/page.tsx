@@ -1,19 +1,28 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
+import { supabase } from "@/lib/supabase";
 
 type Guest = {
     id: number;
     name: string | null;
     phone: string | null;
-    vip_level: string | null;
+};
+
+type EventRecord = {
+    id: number;
+    name: string;
+    venue: string | null;
+    event_date: string;
+    is_active: boolean;
 };
 
 type Reservation = {
     id: number;
     guest_id: number;
+    event_id: number | null;
     reservation_date: string;
     reservation_time: string | null;
     party_size: number;
@@ -23,10 +32,12 @@ type Reservation = {
     notes: string | null;
     created_at: string;
     guests?: Guest | null;
+    events?: EventRecord | null;
 };
 
-type ReservationForm = {
+type FormState = {
     guest_id: string;
+    event_id: string;
     reservation_date: string;
     reservation_time: string;
     party_size: string;
@@ -36,125 +47,223 @@ type ReservationForm = {
     notes: string;
 };
 
-const initialForm: ReservationForm = {
+const initialForm: FormState = {
     guest_id: "",
+    event_id: "",
     reservation_date: "",
     reservation_time: "",
-    party_size: "1",
+    party_size: "2",
     table_number: "",
     reservation_type: "Dinner",
     status: "Pending",
     notes: "",
 };
 
-export default function ReservationsPage() {
-    const [guests, setGuests] = useState<Guest[]>([]);
-    const [reservations, setReservations] = useState<Reservation[]>([]);
-    const [form, setForm] = useState<ReservationForm>(initialForm);
+const STATUS_OPTIONS = [
+    "Pending",
+    "Confirmed",
+    "Seated",
+    "Completed",
+    "Cancelled",
+    "No Show",
+];
 
+const TYPE_OPTIONS = ["Dinner", "Lounge", "VIP Table", "Guest List"];
+
+function formatDate(date: string) {
+    return new Intl.DateTimeFormat("en-CA", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+    }).format(new Date(`${date}T12:00:00`));
+}
+
+function formatTime(time: string | null) {
+    if (!time) return "No time";
+
+    const [hours, minutes] = time.split(":");
+    const date = new Date();
+    date.setHours(Number(hours), Number(minutes), 0, 0);
+
+    return new Intl.DateTimeFormat("en-CA", {
+        hour: "numeric",
+        minute: "2-digit",
+    }).format(date);
+}
+
+export default function ReservationsPage() {
+    const [reservations, setReservations] = useState<Reservation[]>([]);
+    const [guests, setGuests] = useState<Guest[]>([]);
+    const [events, setEvents] = useState<EventRecord[]>([]);
+    const [form, setForm] = useState<FormState>(initialForm);
+    const [editingId, setEditingId] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState("");
+    const [search, setSearch] = useState("");
+    const [statusFilter, setStatusFilter] = useState("All");
 
-    useEffect(() => {
-        loadPage();
-    }, []);
-
-    async function loadPage() {
+    async function loadData() {
         setLoading(true);
         setMessage("");
 
-        const guestsResponse = await supabase
-            .from("guests")
-            .select("id, name, phone, vip_level")
-            .order("name", { ascending: true });
-
-        if (guestsResponse.error) {
-            console.error("Guest loading error:", guestsResponse.error);
-            setMessage(
-                `Could not load guests: ${guestsResponse.error.message}`
-            );
-        } else {
-            setGuests(guestsResponse.data ?? []);
-        }
-
-        const reservationsResponse = await supabase
-            .from("reservations")
-            .select(`
-        id,
-        guest_id,
-        reservation_date,
-        reservation_time,
-        party_size,
-        table_number,
-        reservation_type,
-        status,
-        notes,
-        created_at,
-        guests (
+        const [reservationResult, guestResult, eventResult] = await Promise.all([
+            supabase
+                .from("reservations")
+                .select(`
           id,
-          name,
-          phone,
-          vip_level
-        )
-      `)
-            .order("reservation_date", { ascending: true })
-            .order("reservation_time", { ascending: true });
+          guest_id,
+          event_id,
+          reservation_date,
+          reservation_time,
+          party_size,
+          table_number,
+          reservation_type,
+          status,
+          notes,
+          created_at,
+          guests (
+            id,
+            name,
+            phone
+          ),
+          events (
+            id,
+            name,
+            venue,
+            event_date,
+            is_active
+          )
+        `)
+                .order("reservation_date", { ascending: true })
+                .order("reservation_time", { ascending: true }),
 
-        if (reservationsResponse.error) {
-            console.error(
-                "Reservation loading error:",
-                reservationsResponse.error
-            );
+            supabase
+                .from("guests")
+                .select("id, name, phone")
+                .order("name", { ascending: true }),
 
+            supabase
+                .from("events")
+                .select("id, name, venue, event_date, is_active")
+                .order("event_date", { ascending: false }),
+        ]);
+
+        if (
+            reservationResult.error ||
+            guestResult.error ||
+            eventResult.error
+        ) {
             setMessage(
-                `Could not load reservations: ${reservationsResponse.error.message}`
+                reservationResult.error?.message ||
+                guestResult.error?.message ||
+                eventResult.error?.message ||
+                "Could not load reservations."
             );
-        } else {
-            const normalizedReservations = (reservationsResponse.data ?? []).map(
-                (reservation) => ({
-                    ...reservation,
-                    guests: Array.isArray(reservation.guests)
-                        ? reservation.guests[0] ?? null
-                        : reservation.guests ?? null,
-                })
-            ) as Reservation[];
-
-            setReservations(normalizedReservations);
+            setLoading(false);
+            return;
         }
 
+        setReservations((reservationResult.data ?? []) as unknown as Reservation[]);
+        setGuests((guestResult.data ?? []) as Guest[]);
+        setEvents((eventResult.data ?? []) as EventRecord[]);
         setLoading(false);
     }
 
-    function updateField(
-        field: keyof ReservationForm,
-        value: string
-    ) {
-        setForm((currentForm) => ({
-            ...currentForm,
-            [field]: value,
-        }));
+    useEffect(() => {
+        void loadData();
+    }, []);
+
+    const filteredReservations = useMemo(() => {
+        const query = search.trim().toLowerCase();
+
+        return reservations.filter((reservation) => {
+            const guestName = reservation.guests?.name?.toLowerCase() ?? "";
+            const phone = reservation.guests?.phone?.toLowerCase() ?? "";
+            const table = reservation.table_number?.toLowerCase() ?? "";
+
+            const matchesSearch =
+                !query ||
+                guestName.includes(query) ||
+                phone.includes(query) ||
+                table.includes(query);
+
+            const matchesStatus =
+                statusFilter === "All" || reservation.status === statusFilter;
+
+            return matchesSearch && matchesStatus;
+        });
+    }, [reservations, search, statusFilter]);
+
+    const totals = useMemo(() => {
+        const today = new Date().toISOString().slice(0, 10);
+
+        return {
+            total: reservations.length,
+            today: reservations.filter(
+                (reservation) =>
+                    reservation.reservation_date === today &&
+                    reservation.status !== "Cancelled"
+            ).length,
+            confirmed: reservations.filter(
+                (reservation) => reservation.status === "Confirmed"
+            ).length,
+            guests: reservations
+                .filter((reservation) => reservation.status !== "Cancelled")
+                .reduce(
+                    (sum, reservation) => sum + Number(reservation.party_size || 0),
+                    0
+                ),
+        };
+    }, [reservations]);
+
+    function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
+        setForm((current) => ({ ...current, [key]: value }));
     }
 
-    async function handleSubmit(
-        event: FormEvent<HTMLFormElement>
-    ) {
-        event.preventDefault();
+    function resetForm() {
+        setForm(initialForm);
+        setEditingId(null);
+        setMessage("");
+    }
 
+    function startEdit(reservation: Reservation) {
+        setEditingId(reservation.id);
+        setForm({
+            guest_id: String(reservation.guest_id),
+            event_id: reservation.event_id ? String(reservation.event_id) : "",
+            reservation_date: reservation.reservation_date,
+            reservation_time: reservation.reservation_time?.slice(0, 5) ?? "",
+            party_size: String(reservation.party_size),
+            table_number: reservation.table_number ?? "",
+            reservation_type: reservation.reservation_type,
+            status: reservation.status,
+            notes: reservation.notes ?? "",
+        });
+
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
         setMessage("");
 
-        const guestId = Number(form.guest_id);
+        if (!form.guest_id) {
+            setMessage("Select a guest.");
+            return;
+        }
+
+        const selectedEvent = events.find(
+            (item) => String(item.id) === form.event_id
+        );
+        const reservationDate = selectedEvent?.event_date || form.reservation_date;
+
+        if (!reservationDate) {
+            setMessage("Select an event or enter a reservation date.");
+            return;
+        }
+
         const partySize = Number(form.party_size);
-
-        if (!guestId) {
-            setMessage("Please select a guest.");
-            return;
-        }
-
-        if (!form.reservation_date) {
-            setMessage("Please select a reservation date.");
-            return;
-        }
 
         if (!Number.isInteger(partySize) || partySize < 1) {
             setMessage("Party size must be at least 1.");
@@ -163,513 +272,437 @@ export default function ReservationsPage() {
 
         setSaving(true);
 
-        const { error } = await supabase
-            .from("reservations")
-            .insert([
-                {
-                    guest_id: guestId,
-                    reservation_date: form.reservation_date,
-                    reservation_time:
-                        form.reservation_time || null,
-                    party_size: partySize,
-                    table_number:
-                        form.table_number.trim() || null,
-                    reservation_type: form.reservation_type,
-                    status: form.status,
-                    notes: form.notes.trim() || null,
-                },
-            ]);
+        const payload = {
+            guest_id: Number(form.guest_id),
+            event_id: form.event_id ? Number(form.event_id) : null,
+            reservation_date: reservationDate,
+            reservation_time: form.reservation_time || null,
+            party_size: partySize,
+            table_number: form.table_number.trim() || null,
+            reservation_type: form.reservation_type,
+            status: form.status,
+            notes: form.notes.trim() || null,
+        };
 
-        if (error) {
-            console.error("Create reservation error:", error);
+        const result = editingId
+            ? await supabase.from("reservations").update(payload).eq("id", editingId)
+            : await supabase.from("reservations").insert(payload);
 
-            setMessage(
-                `Could not create reservation: ${error.message}`
-            );
-
+        if (result.error) {
+            setMessage(result.error.message);
             setSaving(false);
             return;
         }
 
         setForm(initialForm);
-        setMessage("Reservation created successfully.");
+        setEditingId(null);
+        await loadData();
+        setMessage(editingId ? "Reservation updated." : "Reservation created.");
         setSaving(false);
-
-        await loadPage();
     }
 
-    async function changeStatus(
-        reservationId: number,
-        newStatus: string
-    ) {
-        setMessage("");
+    async function deleteReservation(id: number) {
+        if (!window.confirm("Delete this reservation? This cannot be undone.")) {
+            return;
+        }
 
-        const { error } = await supabase
-            .from("reservations")
-            .update({
-                status: newStatus,
-            })
-            .eq("id", reservationId);
+        const { error } = await supabase.from("reservations").delete().eq("id", id);
 
         if (error) {
-            console.error("Status update error:", error);
-
-            setMessage(
-                `Could not update reservation: ${error.message}`
-            );
-
+            setMessage(error.message);
             return;
         }
 
-        setMessage("Reservation status updated.");
-        await loadPage();
-    }
-
-    async function deleteReservation(
-        reservationId: number
-    ) {
-        const confirmed = window.confirm(
-            "Delete this reservation? The guest will stay in your guest list."
-        );
-
-        if (!confirmed) {
-            return;
-        }
-
-        setMessage("");
-
-        const { error } = await supabase
-            .from("reservations")
-            .delete()
-            .eq("id", reservationId);
-
-        if (error) {
-            console.error("Delete reservation error:", error);
-
-            setMessage(
-                `Could not delete reservation: ${error.message}`
-            );
-
-            return;
-        }
-
+        await loadData();
         setMessage("Reservation deleted.");
-        await loadPage();
     }
 
     return (
         <div className="flex min-h-screen bg-black text-white">
             <Sidebar />
 
-            <main className="flex-1 p-6 sm:p-10">
+            <main className="min-h-screen flex-1 p-6 sm:p-10">
                 <div className="mx-auto max-w-7xl">
-                    <div>
-                        <p className="text-sm uppercase tracking-[0.3em] text-zinc-500">
-                            Ora CRM
-                        </p>
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <p className="text-sm font-medium uppercase tracking-[0.25em] text-zinc-500">
+                                Ora CRM
+                            </p>
+                            <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Reservations</h1>
+                            <p className="mt-2 text-sm text-zinc-400">
+                                Create, update, and manage dinner, lounge, and VIP reservations.
+                            </p>
+                        </div>
 
-                        <h1 className="mt-2 text-4xl font-bold">
-                            Reservations
-                        </h1>
-
-                        <p className="mt-3 text-zinc-400">
-                            Assign guests to a date, time, party size and
-                            table.
-                        </p>
+                        <Link
+                            href="/add-guest"
+                            className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-semibold transition hover:bg-white/5"
+                        >
+                            Add New Guest
+                        </Link>
                     </div>
 
-                    <section className="mt-10 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-                        <h2 className="text-2xl font-bold">
-                            Add Reservation
-                        </h2>
+                    <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        <StatCard label="Total Reservations" value={totals.total} />
+                        <StatCard label="Reservations Today" value={totals.today} />
+                        <StatCard label="Confirmed" value={totals.confirmed} />
+                        <StatCard label="Total Reserved Guests" value={totals.guests} />
+                    </section>
+
+                    <section className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <h2 className="text-xl font-bold">
+                                    {editingId ? "Edit Reservation" : "New Reservation"}
+                                </h2>
+                                <p className="mt-1 text-sm text-zinc-500">
+                                    Every reservation must be connected to an existing guest.
+                                </p>
+                            </div>
+
+                            {editingId && (
+                                <button
+                                    type="button"
+                                    onClick={resetForm}
+                                    className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900"
+                                >
+                                    Cancel Edit
+                                </button>
+                            )}
+                        </div>
 
                         <form
                             onSubmit={handleSubmit}
-                            className="mt-8 grid gap-5 md:grid-cols-2"
+                            className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-4"
                         >
-                            <div className="md:col-span-2">
-                                <label className="mb-2 block text-sm font-medium">
-                                    Guest
-                                </label>
-
+                            <label className="md:col-span-2">
+                                <span className="text-sm font-medium text-zinc-300">Guest</span>
                                 <select
                                     value={form.guest_id}
-                                    onChange={(event) =>
-                                        updateField(
-                                            "guest_id",
-                                            event.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 p-4"
+                                    onChange={(event) => updateForm("guest_id", event.target.value)}
+                                    className="mt-2 w-full rounded-xl border border-zinc-800 bg-black px-4 py-3 outline-none focus:border-zinc-600"
                                     required
                                 >
-                                    <option value="">
-                                        Select a guest
-                                    </option>
-
+                                    <option value="">Select a guest</option>
                                     {guests.map((guest) => (
-                                        <option
-                                            key={guest.id}
-                                            value={guest.id}
-                                        >
-                                            {guest.name || "Unnamed Guest"}
-                                            {guest.phone
-                                                ? ` — ${guest.phone}`
-                                                : ""}
-                                            {guest.vip_level
-                                                ? ` — ${guest.vip_level}`
-                                                : ""}
+                                        <option key={guest.id} value={guest.id}>
+                                            {guest.name || `Guest #${guest.id}`}
+                                            {guest.phone ? ` — ${guest.phone}` : ""}
                                         </option>
                                     ))}
                                 </select>
-                            </div>
+                            </label>
 
-                            <div>
-                                <label className="mb-2 block text-sm font-medium">
-                                    Reservation Date
+                            <label>
+                                <span className="text-sm font-medium text-zinc-300">
+                                    Event
+                                </span>
+
+                                <select
+                                    value={form.event_id}
+                                    onChange={(event) => {
+                                        const selectedEventId = event.target.value;
+                                        const selectedEvent = events.find(
+                                            (item) => String(item.id) === selectedEventId
+                                        );
+
+                                        setForm((current) => ({
+                                            ...current,
+                                            event_id: selectedEventId,
+                                            reservation_date:
+                                                selectedEvent?.event_date ?? current.reservation_date,
+                                        }));
+                                    }}
+                                    className="mt-2 w-full rounded-xl border border-zinc-800 bg-black px-4 py-3 outline-none focus:border-zinc-600"
+                                >
+                                    <option value="">No event selected</option>
+
+                                    {events.map((event) => (
+                                        <option key={event.id} value={event.id}>
+                                            {event.name}
+                                            {event.venue ? ` — ${event.venue}` : ""}
+                                            {event.is_active ? " (Active)" : ""}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            {form.event_id ? (
+                                <label>
+                                    <span className="text-sm font-medium text-zinc-300">
+                                        Event Date
+                                    </span>
+                                    <div className="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-zinc-300">
+                                        {form.reservation_date
+                                            ? formatDate(form.reservation_date)
+                                            : "No date available"}
+                                    </div>
                                 </label>
-
-                                <input
+                            ) : (
+                                <Field
+                                    label="Date"
                                     type="date"
                                     value={form.reservation_date}
-                                    onChange={(event) =>
-                                        updateField(
-                                            "reservation_date",
-                                            event.target.value
-                                        )
+                                    onChange={(value) =>
+                                        updateForm("reservation_date", value)
                                     }
-                                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 p-4"
                                     required
                                 />
-                            </div>
+                            )}
 
-                            <div>
-                                <label className="mb-2 block text-sm font-medium">
-                                    Reservation Time
-                                </label>
+                            <Field
+                                label="Time"
+                                type="time"
+                                value={form.reservation_time}
+                                onChange={(value) => updateForm("reservation_time", value)}
+                            />
 
-                                <input
-                                    type="time"
-                                    value={form.reservation_time}
-                                    onChange={(event) =>
-                                        updateField(
-                                            "reservation_time",
-                                            event.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 p-4"
-                                />
-                            </div>
+                            <Field
+                                label="Party Size"
+                                type="number"
+                                min="1"
+                                value={form.party_size}
+                                onChange={(value) => updateForm("party_size", value)}
+                                required
+                            />
 
-                            <div>
-                                <label className="mb-2 block text-sm font-medium">
-                                    Number of People
-                                </label>
+                            <Field
+                                label="Table Number"
+                                value={form.table_number}
+                                onChange={(value) => updateForm("table_number", value)}
+                                placeholder="Example: 12 or VIP-3"
+                            />
 
-                                <input
-                                    type="number"
-                                    min="1"
-                                    value={form.party_size}
-                                    onChange={(event) =>
-                                        updateField(
-                                            "party_size",
-                                            event.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 p-4"
-                                    placeholder="Example: 6"
-                                    required
-                                />
-                            </div>
-
-                            <div>
-                                <label className="mb-2 block text-sm font-medium">
-                                    Table Number
-                                </label>
-
-                                <input
-                                    type="text"
-                                    value={form.table_number}
-                                    onChange={(event) =>
-                                        updateField(
-                                            "table_number",
-                                            event.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 p-4"
-                                    placeholder="Example: T12 or VIP 3"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="mb-2 block text-sm font-medium">
+                            <label>
+                                <span className="text-sm font-medium text-zinc-300">
                                     Reservation Type
-                                </label>
-
+                                </span>
                                 <select
                                     value={form.reservation_type}
                                     onChange={(event) =>
-                                        updateField(
-                                            "reservation_type",
-                                            event.target.value
-                                        )
+                                        updateForm("reservation_type", event.target.value)
                                     }
-                                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 p-4"
+                                    className="mt-2 w-full rounded-xl border border-zinc-800 bg-black px-4 py-3 outline-none focus:border-zinc-600"
                                 >
-                                    <option value="Dinner">
-                                        Dinner
-                                    </option>
-
-                                    <option value="Club">
-                                        Club
-                                    </option>
-
-                                    <option value="Dinner + Club">
-                                        Dinner + Club
-                                    </option>
+                                    {TYPE_OPTIONS.map((type) => (
+                                        <option key={type} value={type}>
+                                            {type}
+                                        </option>
+                                    ))}
                                 </select>
-                            </div>
+                            </label>
 
-                            <div>
-                                <label className="mb-2 block text-sm font-medium">
-                                    Status
-                                </label>
-
+                            <label>
+                                <span className="text-sm font-medium text-zinc-300">Status</span>
                                 <select
                                     value={form.status}
-                                    onChange={(event) =>
-                                        updateField(
-                                            "status",
-                                            event.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 p-4"
+                                    onChange={(event) => updateForm("status", event.target.value)}
+                                    className="mt-2 w-full rounded-xl border border-zinc-800 bg-black px-4 py-3 outline-none focus:border-zinc-600"
                                 >
-                                    <option value="Pending">
-                                        Pending
-                                    </option>
-
-                                    <option value="Confirmed">
-                                        Confirmed
-                                    </option>
-
-                                    <option value="Seated">
-                                        Seated
-                                    </option>
-
-                                    <option value="Completed">
-                                        Completed
-                                    </option>
-
-                                    <option value="Cancelled">
-                                        Cancelled
-                                    </option>
-
-                                    <option value="No Show">
-                                        No Show
-                                    </option>
+                                    {STATUS_OPTIONS.map((status) => (
+                                        <option key={status} value={status}>
+                                            {status}
+                                        </option>
+                                    ))}
                                 </select>
-                            </div>
+                            </label>
 
-                            <div className="md:col-span-2">
-                                <label className="mb-2 block text-sm font-medium">
-                                    Notes
-                                </label>
-
+                            <label className="md:col-span-2 xl:col-span-4">
+                                <span className="text-sm font-medium text-zinc-300">Notes</span>
                                 <textarea
                                     value={form.notes}
-                                    onChange={(event) =>
-                                        updateField(
-                                            "notes",
-                                            event.target.value
-                                        )
-                                    }
-                                    rows={4}
-                                    className="w-full resize-none rounded-lg border border-zinc-700 bg-zinc-900 p-4"
-                                    placeholder="Birthday, bottle request, seating preference..."
+                                    onChange={(event) => updateForm("notes", event.target.value)}
+                                    rows={3}
+                                    placeholder="Special requests, birthday, bottle service, host notes..."
+                                    className="mt-2 w-full rounded-xl border border-zinc-800 bg-black px-4 py-3 outline-none focus:border-zinc-600"
                                 />
-                            </div>
+                            </label>
 
-                            <div className="md:col-span-2">
+                            <div className="md:col-span-2 xl:col-span-4">
+                                {message && (
+                                    <p className="mb-4 rounded-xl border border-white/10 bg-black px-4 py-3 text-sm text-zinc-300">
+                                        {message}
+                                    </p>
+                                )}
+
                                 <button
                                     type="submit"
                                     disabled={saving}
-                                    className="w-full rounded-lg bg-white px-6 py-4 font-bold text-black hover:bg-zinc-200 disabled:opacity-50"
+                                    className="rounded-xl bg-white px-6 py-3 font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                     {saving
-                                        ? "Saving Reservation..."
-                                        : "Save Reservation"}
+                                        ? "Saving..."
+                                        : editingId
+                                            ? "Update Reservation"
+                                            : "Create Reservation"}
                                 </button>
                             </div>
                         </form>
                     </section>
 
-                    {message && (
-                        <div className="mt-6 rounded-lg border border-zinc-700 bg-zinc-900 p-4">
-                            {message}
-                        </div>
-                    )}
-
-                    <section className="mt-10">
-                        <div className="flex items-center justify-between">
+                    <section className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                             <div>
-                                <h2 className="text-2xl font-bold">
-                                    Reservation List
-                                </h2>
-
-                                <p className="mt-2 text-sm text-zinc-400">
-                                    {reservations.length} reservation
-                                    {reservations.length === 1 ? "" : "s"}
+                                <h2 className="text-xl font-bold">Reservation List</h2>
+                                <p className="mt-1 text-sm text-zinc-500">
+                                    {filteredReservations.length} reservation
+                                    {filteredReservations.length === 1 ? "" : "s"} shown
                                 </p>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={loadPage}
-                                className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900"
-                            >
-                                Refresh
-                            </button>
+                            <div className="flex flex-col gap-3 sm:flex-row">
+                                <input
+                                    value={search}
+                                    onChange={(event) => setSearch(event.target.value)}
+                                    placeholder="Search guest, phone, or table"
+                                    className="rounded-xl border border-zinc-800 bg-black px-4 py-3 text-sm outline-none focus:border-zinc-600"
+                                />
+
+                                <select
+                                    value={statusFilter}
+                                    onChange={(event) => setStatusFilter(event.target.value)}
+                                    className="rounded-xl border border-zinc-800 bg-black px-4 py-3 text-sm outline-none focus:border-zinc-600"
+                                >
+                                    <option value="All">All statuses</option>
+                                    {STATUS_OPTIONS.map((status) => (
+                                        <option key={status} value={status}>
+                                            {status}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
 
                         {loading ? (
-                            <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-950 p-8 text-zinc-400">
-                                Loading reservations...
-                            </div>
-                        ) : reservations.length === 0 ? (
-                            <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-950 p-8 text-center text-zinc-400">
-                                No reservations yet.
-                            </div>
+                            <p className="mt-6 text-sm text-zinc-500">Loading reservations...</p>
+                        ) : filteredReservations.length === 0 ? (
+                            <p className="mt-6 rounded-xl border border-dashed border-zinc-800 p-6 text-center text-sm text-zinc-500">
+                                No reservations found.
+                            </p>
                         ) : (
-                            <div className="mt-6 space-y-4">
-                                {reservations.map((reservation) => (
-                                    <article
-                                        key={reservation.id}
-                                        className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6"
-                                    >
-                                        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                                            <div>
-                                                <div className="flex flex-wrap items-center gap-3">
-                                                    <h3 className="text-xl font-bold">
-                                                        {reservation.guests?.name ||
-                                                            "Unknown Guest"}
-                                                    </h3>
+                            <div className="mt-6 overflow-x-auto rounded-xl border border-zinc-800">
+                                <table className="min-w-full divide-y divide-zinc-800 text-left text-sm">
+                                    <thead className="bg-black text-zinc-500">
+                                        <tr>
+                                            <th className="px-4 py-3 font-medium">Guest</th>
+                                            <th className="px-4 py-3 font-medium">Event</th>
+                                            <th className="px-4 py-3 font-medium">Date</th>
+                                            <th className="px-4 py-3 font-medium">Time</th>
+                                            <th className="px-4 py-3 font-medium">Party</th>
+                                            <th className="px-4 py-3 font-medium">Table</th>
+                                            <th className="px-4 py-3 font-medium">Type</th>
+                                            <th className="px-4 py-3 font-medium">Status</th>
+                                            <th className="px-4 py-3 font-medium">Actions</th>
+                                        </tr>
+                                    </thead>
 
-                                                    <span className="rounded-full border border-zinc-700 px-3 py-1 text-xs">
+                                    <tbody className="divide-y divide-zinc-800">
+                                        {filteredReservations.map((reservation) => (
+                                            <tr key={reservation.id} className="bg-zinc-950">
+                                                <td className="px-4 py-4">
+                                                    <p className="font-semibold text-white">
+                                                        {reservation.guests?.name ||
+                                                            `Guest #${reservation.guest_id}`}
+                                                    </p>
+                                                    <p className="mt-1 text-xs text-zinc-500">
+                                                        {reservation.guests?.phone || "No phone"}
+                                                    </p>
+                                                </td>
+                                                <td className="px-4 py-4 text-zinc-300">
+                                                    {reservation.events?.name || "No event"}
+                                                </td>
+
+                                                <td className="px-4 py-4 text-zinc-300">
+                                                    {formatDate(reservation.reservation_date)}
+                                                </td>
+                                                <td className="px-4 py-4 text-zinc-300">
+                                                    {formatTime(reservation.reservation_time)}
+                                                </td>
+                                                <td className="px-4 py-4 text-zinc-300">
+                                                    {reservation.party_size}
+                                                </td>
+                                                <td className="px-4 py-4 text-zinc-300">
+                                                    {reservation.table_number || "—"}
+                                                </td>
+                                                <td className="px-4 py-4 text-zinc-300">
+                                                    {reservation.reservation_type}
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-300">
                                                         {reservation.status}
                                                     </span>
-                                                </div>
-
-                                                <div className="mt-4 grid gap-3 text-sm text-zinc-400 sm:grid-cols-2 lg:grid-cols-4">
-                                                    <p>
-                                                        Date:{" "}
-                                                        <span className="text-white">
-                                                            {
-                                                                reservation.reservation_date
-                                                            }
-                                                        </span>
-                                                    </p>
-
-                                                    <p>
-                                                        Time:{" "}
-                                                        <span className="text-white">
-                                                            {reservation.reservation_time
-                                                                ? reservation.reservation_time.slice(
-                                                                    0,
-                                                                    5
-                                                                )
-                                                                : "Not set"}
-                                                        </span>
-                                                    </p>
-
-                                                    <p>
-                                                        Party:{" "}
-                                                        <span className="text-white">
-                                                            {reservation.party_size} people
-                                                        </span>
-                                                    </p>
-
-                                                    <p>
-                                                        Table:{" "}
-                                                        <span className="text-white">
-                                                            {reservation.table_number ||
-                                                                "Not assigned"}
-                                                        </span>
-                                                    </p>
-                                                </div>
-
-                                                <p className="mt-3 text-sm text-zinc-400">
-                                                    Type:{" "}
-                                                    <span className="text-white">
-                                                        {
-                                                            reservation.reservation_type
-                                                        }
-                                                    </span>
-                                                </p>
-
-                                                {reservation.notes && (
-                                                    <p className="mt-3 text-sm text-zinc-500">
-                                                        Notes: {reservation.notes}
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            <div className="flex flex-col gap-3 sm:flex-row">
-                                                <select
-                                                    value={reservation.status}
-                                                    onChange={(event) =>
-                                                        changeStatus(
-                                                            reservation.id,
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3"
-                                                >
-                                                    <option value="Pending">
-                                                        Pending
-                                                    </option>
-
-                                                    <option value="Confirmed">
-                                                        Confirmed
-                                                    </option>
-
-                                                    <option value="Seated">
-                                                        Seated
-                                                    </option>
-
-                                                    <option value="Completed">
-                                                        Completed
-                                                    </option>
-
-                                                    <option value="Cancelled">
-                                                        Cancelled
-                                                    </option>
-
-                                                    <option value="No Show">
-                                                        No Show
-                                                    </option>
-                                                </select>
-
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        deleteReservation(
-                                                            reservation.id
-                                                        )
-                                                    }
-                                                    className="rounded-lg bg-red-950 px-4 py-3 text-red-300 hover:bg-red-900"
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </article>
-                                ))}
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => startEdit(reservation)}
+                                                            className="rounded-lg border border-zinc-700 px-3 py-2 text-xs font-semibold hover:bg-zinc-900"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => deleteReservation(reservation.id)}
+                                                            className="rounded-lg border border-red-900 px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-950/40"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         )}
                     </section>
                 </div>
             </main>
+        </div>
+    );
+}
+
+type FieldProps = {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    type?: string;
+    min?: string;
+    placeholder?: string;
+    required?: boolean;
+};
+
+function Field({
+    label,
+    value,
+    onChange,
+    type = "text",
+    min,
+    placeholder,
+    required = false,
+}: FieldProps) {
+    return (
+        <label>
+            <span className="text-sm font-medium text-zinc-300">{label}</span>
+            <input
+                type={type}
+                min={min}
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+                placeholder={placeholder}
+                required={required}
+                className="mt-2 w-full rounded-xl border border-zinc-800 bg-black px-4 py-3 outline-none focus:border-zinc-600"
+            />
+        </label>
+    );
+}
+
+function StatCard({ label, value }: { label: string; value: number }) {
+    return (
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+            <p className="text-sm text-zinc-500">{label}</p>
+            <p className="mt-2 text-3xl font-bold">{value}</p>
         </div>
     );
 }

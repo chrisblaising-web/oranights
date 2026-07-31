@@ -37,6 +37,7 @@ export default function GuestSearch({
     null
   );
   const [updatingVipId, setUpdatingVipId] = useState<number | null>(null);
+  const [updatingTagId, setUpdatingTagId] = useState<number | null>(null);
   const [status, setStatus] = useState<StatusMessage>(null);
 
   const filteredGuests = useMemo(() => {
@@ -236,6 +237,82 @@ export default function GuestSearch({
     }
   }
 
+  async function updateGuestTag(guest: Guest, newTag: string) {
+    if (updatingTagId !== null) {
+      return;
+    }
+
+    setStatus(null);
+    setUpdatingTagId(guest.id);
+
+    const previousTag = guest.tag ?? null;
+    const tagValue = newTag || "Regular";
+
+    setGuestList((currentGuests) =>
+      currentGuests.map((currentGuest) =>
+        currentGuest.id === guest.id
+          ? { ...currentGuest, tag: tagValue }
+          : currentGuest
+      )
+    );
+
+    try {
+      const { data: updatedGuest, error } = await supabase
+        .from("guests")
+        .update({ tag: tagValue })
+        .eq("id", guest.id)
+        .select("id, tag")
+        .single();
+
+      if (error) {
+        throw new Error(`Could not update tag: ${error.message}`);
+      }
+
+      if (!updatedGuest) {
+        throw new Error("Supabase did not return the updated guest.");
+      }
+
+      setGuestList((currentGuests) =>
+        currentGuests.map((currentGuest) =>
+          currentGuest.id === guest.id
+            ? { ...currentGuest, tag: updatedGuest.tag }
+            : currentGuest
+        )
+      );
+
+      const guestName = guest.name?.trim() || `Guest #${guest.id}`;
+
+      setStatus({
+        type: "success",
+        message: `${guestName}'s tag was updated to ${updatedGuest.tag || "Regular"}.`,
+      });
+
+      router.refresh();
+    } catch (error) {
+      setGuestList((currentGuests) =>
+        currentGuests.map((currentGuest) =>
+          currentGuest.id === guest.id
+            ? { ...currentGuest, tag: previousTag }
+            : currentGuest
+        )
+      );
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred.";
+
+      console.error("Update guest tag error:", error);
+
+      setStatus({
+        type: "error",
+        message,
+      });
+    } finally {
+      setUpdatingTagId(null);
+    }
+  }
+
   async function deleteGuest(guest: Guest) {
     if (deletingId !== null) {
       return;
@@ -386,8 +463,8 @@ export default function GuestSearch({
       {status && (
         <div
           className={`mt-4 rounded-lg border p-4 text-sm ${status.type === "success"
-              ? "border-green-800 bg-green-950/50 text-green-200"
-              : "border-red-800 bg-red-950/50 text-red-200"
+            ? "border-green-800 bg-green-950/50 text-green-200"
+            : "border-red-800 bg-red-950/50 text-red-200"
             }`}
         >
           {status.message}
@@ -419,6 +496,9 @@ export default function GuestSearch({
 
               const isUpdatingVip =
                 updatingVipId === guest.id;
+
+              const isUpdatingTag =
+                updatingTagId === guest.id;
 
               return (
                 <tr
@@ -501,7 +581,33 @@ export default function GuestSearch({
                   </td>
 
                   <td className="p-5">
-                    {guest.tag || "Regular"}
+                    <div className="flex min-w-[140px] flex-col gap-1">
+                      <select
+                        value={guest.tag ?? "Regular"}
+                        onChange={(event) =>
+                          updateGuestTag(guest, event.target.value)
+                        }
+                        disabled={
+                          isUpdatingTag ||
+                          deletingId !== null
+                        }
+                        className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="Regular">Regular</option>
+                        <option value="Host">Host</option>
+                        <option value="Promoter">Promoter</option>
+                        <option value="Influencer">Influencer</option>
+                        <option value="Artist">Artist</option>
+                        <option value="Birthday">Birthday</option>
+                        <option value="Temp">Temp</option>
+                      </select>
+
+                      {isUpdatingTag && (
+                        <span className="text-xs text-zinc-400">
+                          Saving...
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   <td className="p-5">
@@ -532,7 +638,8 @@ export default function GuestSearch({
                         disabled={
                           deletingId !== null ||
                           updatingGenderId !== null ||
-                          updatingVipId !== null
+                          updatingVipId !== null ||
+                          updatingTagId !== null
                         }
                         className="rounded bg-red-600 px-3 py-2 transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
                       >
