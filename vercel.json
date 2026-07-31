@@ -1,0 +1,8 @@
+{
+    "crons": [
+        {
+            "path": "/api/twilio/sync",
+            "schedule": "0 * * * *"
+        }
+    ]
+}
