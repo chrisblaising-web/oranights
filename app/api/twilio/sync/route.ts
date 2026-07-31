@@ -6,19 +6,26 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function createSupabaseAdmin() {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl =
+        process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+    const serviceRoleKey =
+        process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !serviceRoleKey) {
         return null;
     }
 
-    return createClient(supabaseUrl, serviceRoleKey, {
-        auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-        },
-    });
+    return createClient(
+        supabaseUrl,
+        serviceRoleKey,
+        {
+            auth: {
+                persistSession: false,
+                autoRefreshToken: false,
+            },
+        }
+    );
 }
 
 function normalizePhone(phone: string | null) {
@@ -30,28 +37,39 @@ function normalizePhone(phone: string | null) {
         return `+1${digits}`;
     }
 
-    if (digits.length === 11 && digits.startsWith("1")) {
+    if (
+        digits.length === 11 &&
+        digits.startsWith("1")
+    ) {
         return `+${digits}`;
     }
 
-    return phone.startsWith("+") ? phone : `+${digits}`;
+    return phone.startsWith("+")
+        ? phone
+        : `+${digits}`;
 }
 
-export async function GET(request: NextRequest) {
-    const authorization = request.headers.get("authorization");
+export async function GET(
+    request: NextRequest
+) {
+    const authorization = request.headers
+        .get("authorization")
+        ?.trim();
 
     const expectedSecret =
-        process.env.CRON_SECRET ||
-        process.env.TWILIO_SYNC_SECRET;
+        process.env.CRON_SECRET?.trim();
 
     if (
         !expectedSecret ||
-        authorization !== `Bearer ${expectedSecret}`
+        authorization !==
+        `Bearer ${expectedSecret}`
     ) {
         return NextResponse.json(
             {
                 success: false,
                 error: "Unauthorized.",
+                cronSecretLoaded:
+                    Boolean(expectedSecret),
             },
             {
                 status: 401,
@@ -62,11 +80,17 @@ export async function GET(request: NextRequest) {
         );
     }
 
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const twilioNumber = process.env.TWILIO_PHONE_NUMBER;
+    const accountSid =
+        process.env.TWILIO_ACCOUNT_SID;
 
-    const supabase = createSupabaseAdmin();
+    const authToken =
+        process.env.TWILIO_AUTH_TOKEN;
+
+    const twilioNumber =
+        process.env.TWILIO_PHONE_NUMBER;
+
+    const supabase =
+        createSupabaseAdmin();
 
     if (
         !accountSid ||
@@ -77,11 +101,13 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(
             {
                 success: false,
-                error: "Missing Twilio or Supabase configuration.",
+                error:
+                    "Missing Twilio or Supabase configuration.",
                 missing: {
                     accountSid: !accountSid,
                     authToken: !authToken,
-                    twilioNumber: !twilioNumber,
+                    twilioNumber:
+                        !twilioNumber,
                     supabase: !supabase,
                 },
             },
@@ -95,20 +121,28 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const client = twilio(accountSid, authToken);
+        const client = twilio(
+            accountSid,
+            authToken
+        );
 
         const since = new Date();
-        since.setDate(since.getDate() - 7);
+        since.setDate(
+            since.getDate() - 7
+        );
 
-        const messages = await client.messages.list({
-            dateSentAfter: since,
-            limit: 1000,
-        });
+        const messages =
+            await client.messages.list({
+                dateSentAfter: since,
+                limit: 1000,
+            });
 
-        const { data: guests, error: guestsError } =
-            await supabase
-                .from("guests")
-                .select("id, name, phone");
+        const {
+            data: guests,
+            error: guestsError,
+        } = await supabase
+            .from("guests")
+            .select("id, name, phone");
 
         if (guestsError) {
             throw new Error(
@@ -118,19 +152,29 @@ export async function GET(request: NextRequest) {
 
         const guestsByPhone = new Map<
             string,
-            { id: number; name: string | null }
+            {
+                id: number;
+                name: string | null;
+            }
         >();
 
         for (const guest of guests ?? []) {
-            const digits = String(guest.phone || "")
+            const digits = String(
+                guest.phone || ""
+            )
                 .replace(/\D/g, "")
                 .slice(-10);
 
             if (digits) {
-                guestsByPhone.set(digits, {
-                    id: guest.id,
-                    name: guest.name || null,
-                });
+                guestsByPhone.set(
+                    digits,
+                    {
+                        id: guest.id,
+                        name:
+                            guest.name ||
+                            null,
+                    }
+                );
             }
         }
 
@@ -140,30 +184,41 @@ export async function GET(request: NextRequest) {
 
         const failures: Array<{
             sid: string;
-            action: "insert" | "update";
+            action:
+            | "insert"
+            | "update";
             error: string;
         }> = [];
 
         for (const message of messages) {
             const isInbound =
-                message.direction === "inbound";
+                message.direction ===
+                "inbound";
 
-            const guestPhone = normalizePhone(
-                isInbound ? message.from : message.to
-            );
+            const guestPhone =
+                normalizePhone(
+                    isInbound
+                        ? message.from
+                        : message.to
+                );
 
-            const phoneDigits = guestPhone
-                .replace(/\D/g, "")
-                .slice(-10);
+            const phoneDigits =
+                guestPhone
+                    .replace(/\D/g, "")
+                    .slice(-10);
 
             const matchingGuest =
-                guestsByPhone.get(phoneDigits);
+                guestsByPhone.get(
+                    phoneDigits
+                );
 
             const guestId =
-                matchingGuest?.id ?? null;
+                matchingGuest?.id ??
+                null;
 
             const guestName =
-                matchingGuest?.name ?? null;
+                matchingGuest?.name ??
+                null;
 
             const record = {
                 guest_id: guestId,
@@ -172,20 +227,29 @@ export async function GET(request: NextRequest) {
                 direction: isInbound
                     ? "inbound"
                     : "outbound",
-                message: message.body || "",
-                status: message.status || "unknown",
-                twilio_sid: message.sid,
+                message:
+                    message.body || "",
+                status:
+                    message.status ||
+                    "unknown",
+                twilio_sid:
+                    message.sid,
                 twilio_error_code:
-                    message.errorCode?.toString() || null,
-                error_message: message.errorMessage || null,
+                    message.errorCode?.toString() ||
+                    null,
+                error_message:
+                    message.errorMessage ||
+                    null,
                 is_read: !isInbound,
                 created_at:
                     message.dateSent?.toISOString() ||
                     message.dateCreated?.toISOString() ||
                     new Date().toISOString(),
-                updated_at: new Date().toISOString(),
+                updated_at:
+                    new Date().toISOString(),
                 delivered_at:
-                    message.status === "delivered" &&
+                    message.status ===
+                        "delivered" &&
                         message.dateUpdated
                         ? message.dateUpdated.toISOString()
                         : null,
@@ -197,61 +261,90 @@ export async function GET(request: NextRequest) {
             } = await supabase
                 .from("sms_messages")
                 .select("id")
-                .eq("twilio_sid", message.sid)
+                .eq(
+                    "twilio_sid",
+                    message.sid
+                )
                 .maybeSingle();
 
             if (existingError) {
                 failed += 1;
+
                 failures.push({
                     sid: message.sid,
                     action: "update",
-                    error: existingError.message,
+                    error:
+                        existingError.message,
                 });
+
                 continue;
             }
 
             if (existing) {
-                const { error } = await supabase
-                    .from("sms_messages")
-                    .update({
-                        guest_id: record.guest_id,
-                        guest_name: record.guest_name,
-                        phone: record.phone,
-                        direction: record.direction,
-                        message: record.message,
-                        status: record.status,
-                        twilio_error_code:
-                            record.twilio_error_code,
-                        error_message:
-                            record.error_message,
-                        delivered_at:
-                            record.delivered_at,
-                        updated_at:
-                            record.updated_at,
-                    })
-                    .eq("id", existing.id);
+                const { error } =
+                    await supabase
+                        .from(
+                            "sms_messages"
+                        )
+                        .update({
+                            guest_id:
+                                record.guest_id,
+                            guest_name:
+                                record.guest_name,
+                            phone:
+                                record.phone,
+                            direction:
+                                record.direction,
+                            message:
+                                record.message,
+                            status:
+                                record.status,
+                            twilio_error_code:
+                                record.twilio_error_code,
+                            error_message:
+                                record.error_message,
+                            delivered_at:
+                                record.delivered_at,
+                            updated_at:
+                                record.updated_at,
+                        })
+                        .eq(
+                            "id",
+                            existing.id
+                        );
 
                 if (error) {
                     failed += 1;
+
                     failures.push({
-                        sid: message.sid,
-                        action: "update",
-                        error: error.message,
+                        sid:
+                            message.sid,
+                        action:
+                            "update",
+                        error:
+                            error.message,
                     });
                 } else {
                     updated += 1;
                 }
             } else {
-                const { error } = await supabase
-                    .from("sms_messages")
-                    .insert(record);
+                const { error } =
+                    await supabase
+                        .from(
+                            "sms_messages"
+                        )
+                        .insert(record);
 
                 if (error) {
                     failed += 1;
+
                     failures.push({
-                        sid: message.sid,
-                        action: "insert",
-                        error: error.message,
+                        sid:
+                            message.sid,
+                        action:
+                            "insert",
+                        error:
+                            error.message,
                     });
                 } else {
                     inserted += 1;
@@ -259,26 +352,39 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        console.log("Twilio sync complete:", {
-            checked: messages.length,
-            inserted,
-            updated,
-            failed,
-        });
+        console.log(
+            "Twilio sync complete:",
+            {
+                checked:
+                    messages.length,
+                inserted,
+                updated,
+                failed,
+            }
+        );
 
         return NextResponse.json(
             {
                 success: failed === 0,
-                checked: messages.length,
+                checked:
+                    messages.length,
                 inserted,
                 updated,
                 failed,
-                failures: failures.slice(0, 20),
+                failures:
+                    failures.slice(
+                        0,
+                        20
+                    ),
             },
             {
-                status: failed === 0 ? 200 : 207,
+                status:
+                    failed === 0
+                        ? 200
+                        : 207,
                 headers: {
-                    "Cache-Control": "no-store",
+                    "Cache-Control":
+                        "no-store",
                 },
             }
         );
@@ -299,7 +405,8 @@ export async function GET(request: NextRequest) {
             {
                 status: 500,
                 headers: {
-                    "Cache-Control": "no-store",
+                    "Cache-Control":
+                        "no-store",
                 },
             }
         );
