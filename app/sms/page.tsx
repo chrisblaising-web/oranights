@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
+import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 
 type RecipientMode = "individual" | "manual" | "group";
@@ -818,656 +819,658 @@ export default function SMSPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-black text-white">
-      <Sidebar />
+    <AdminGuard>
+      <div className="flex min-h-screen bg-black text-white">
+        <Sidebar />
 
-      <main className="flex-1 p-6 md:p-10">
-        <h1 className="text-4xl font-bold">
-          SMS Campaigns
-        </h1>
+        <main className="flex-1 p-6 md:p-10">
+          <h1 className="text-4xl font-bold">
+            SMS Campaigns
+          </h1>
 
-        <p className="mt-2 text-zinc-400">
-          Send a message to one saved guest, one manual number,
-          or an entire guest group.
-        </p>
+          <p className="mt-2 text-zinc-400">
+            Send a message to one saved guest, one manual number,
+            or an entire guest group.
+          </p>
 
-        <div className="mt-10 grid gap-8 xl:grid-cols-2">
-          <section className="space-y-6 rounded-xl bg-zinc-900 p-6">
-            <div>
-              <label
-                htmlFor="campaign-name"
-                className="mb-2 block text-sm text-zinc-400"
-              >
-                Campaign name
-              </label>
-
-              <input
-                id="campaign-name"
-                placeholder="Example: Friday VIP Reminder"
-                value={title}
-                onChange={(event) =>
-                  setTitle(
-                    event.target.value
-                  )
-                }
-                className="w-full rounded bg-zinc-800 p-4 outline-none ring-blue-600 focus:ring-2"
-              />
-            </div>
-
-            <div>
-              <h2 className="text-lg font-bold">
-                Who do you want to message?
-              </h2>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRecipientMode(
-                      "individual"
-                    );
-
-                    setSelectedGroup(
-                      ""
-                    );
-
-                    setStatus("");
-                  }}
-                  className={`rounded-lg border p-4 text-left transition ${recipientMode ===
-                    "individual"
-                    ? "border-blue-500 bg-blue-950/40"
-                    : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
-                    }`}
+          <div className="mt-10 grid gap-8 xl:grid-cols-2">
+            <section className="space-y-6 rounded-xl bg-zinc-900 p-6">
+              <div>
+                <label
+                  htmlFor="campaign-name"
+                  className="mb-2 block text-sm text-zinc-400"
                 >
-                  <p className="font-semibold">
-                    One Guest
-                  </p>
+                  Campaign name
+                </label>
 
-                  <p className="mt-1 text-sm text-zinc-400">
-                    Select one person and view their phone number.
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRecipientMode(
-                      "manual"
-                    );
-
-                    setSelectedGuestId(
-                      ""
-                    );
-
-                    setSelectedGroup(
-                      ""
-                    );
-
-                    setStatus("");
-                  }}
-                  className={`rounded-lg border p-4 text-left transition ${recipientMode ===
-                    "manual"
-                    ? "border-blue-500 bg-blue-950/40"
-                    : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
-                    }`}
-                >
-                  <p className="font-semibold">
-                    Manual Number
-                  </p>
-
-                  <p className="mt-1 text-sm text-zinc-400">
-                    Enter one guest and phone number manually.
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRecipientMode(
-                      "group"
-                    );
-
-                    setSelectedGuestId(
-                      ""
-                    );
-
-                    setStatus("");
-                  }}
-                  className={`rounded-lg border p-4 text-left transition ${recipientMode ===
-                    "group"
-                    ? "border-blue-500 bg-blue-950/40"
-                    : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
-                    }`}
-                >
-                  <p className="font-semibold">
-                    Guest Group
-                  </p>
-
-                  <p className="mt-1 text-sm text-zinc-400">
-                    Send to guests sharing a tag or VIP level.
-                  </p>
-                </button>
+                <input
+                  id="campaign-name"
+                  placeholder="Example: Friday VIP Reminder"
+                  value={title}
+                  onChange={(event) =>
+                    setTitle(
+                      event.target.value
+                    )
+                  }
+                  className="w-full rounded bg-zinc-800 p-4 outline-none ring-blue-600 focus:ring-2"
+                />
               </div>
-            </div>
 
-            {recipientMode ===
-              "individual" && (
-                <div>
-                  <label
-                    htmlFor="guest"
-                    className="mb-2 block text-sm text-zinc-400"
-                  >
-                    Select guest
-                  </label>
+              <div>
+                <h2 className="text-lg font-bold">
+                  Who do you want to message?
+                </h2>
 
-                  <select
-                    id="guest"
-                    value={
-                      selectedGuestId
-                    }
-                    onChange={(
-                      event
-                    ) => {
-                      setSelectedGuestId(
-                        event.target
-                          .value
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecipientMode(
+                        "individual"
                       );
 
-                      setStatus("");
-                    }}
-                    disabled={
-                      loadingGuests
-                    }
-                    className="w-full rounded bg-zinc-800 p-4 outline-none ring-blue-600 focus:ring-2 disabled:opacity-50"
-                  >
-                    <option value="">
-                      {loadingGuests
-                        ? "Loading guests..."
-                        : "Choose a guest"}
-                    </option>
-
-                    {guests.map(
-                      (guest) => (
-                        <option
-                          key={
-                            guest.id
-                          }
-                          value={
-                            guest.id
-                          }
-                        >
-                          {guest.name ||
-                            "Unnamed guest"}{" "}
-                          —{" "}
-                          {guest.phone ||
-                            "No phone number"}
-                        </option>
-                      )
-                    )}
-                  </select>
-
-                  {selectedGuest && (
-                    <div className="mt-4 rounded-lg border border-zinc-700 bg-black p-4">
-                      <p className="text-sm text-zinc-400">
-                        Selected recipient
-                      </p>
-
-                      <p className="mt-1 text-lg font-semibold">
-                        {selectedGuest.name ||
-                          "Unnamed guest"}
-                      </p>
-
-                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <p className="text-xs uppercase text-zinc-500">
-                            Phone
-                          </p>
-
-                          <p className="mt-1 text-zinc-200">
-                            {selectedGuest.phone ||
-                              "No phone number"}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-xs uppercase text-zinc-500">
-                            Group
-                          </p>
-
-                          <p className="mt-1 text-zinc-200">
-                            {selectedGuest.tag ||
-                              selectedGuest.vip_level ||
-                              "No group"}
-                          </p>
-                        </div>
-                      </div>
-
-                      {!selectedGuest.phone && (
-                        <p className="mt-4 rounded bg-red-950/40 p-3 text-sm text-red-300">
-                          Add a phone number to this guest before sending an SMS.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-            {recipientMode ===
-              "manual" && (
-                <div className="space-y-4">
-                  <div>
-                    <label
-                      htmlFor="manual-name"
-                      className="mb-2 block text-sm text-zinc-400"
-                    >
-                      Guest name
-                    </label>
-
-                    <input
-                      id="manual-name"
-                      type="text"
-                      value={manualName}
-                      onChange={(
-                        event
-                      ) => {
-                        setManualName(
-                          event.target
-                            .value
-                        );
-
-                        setStatus("");
-                      }}
-                      placeholder="Example: John Doe"
-                      className="w-full rounded bg-zinc-800 p-4 outline-none ring-blue-600 focus:ring-2"
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="manual-phone"
-                      className="mb-2 block text-sm text-zinc-400"
-                    >
-                      Phone number
-                    </label>
-
-                    <input
-                      id="manual-phone"
-                      type="tel"
-                      value={
-                        manualPhone
-                      }
-                      onChange={(
-                        event
-                      ) => {
-                        setManualPhone(
-                          event.target
-                            .value
-                        );
-
-                        setStatus("");
-                      }}
-                      placeholder="+1 514 555 1234"
-                      className="w-full rounded bg-zinc-800 p-4 outline-none ring-blue-600 focus:ring-2"
-                    />
-
-                    <p className="mt-2 text-xs text-zinc-500">
-                      Canadian numbers can be entered with or without +1.
-                    </p>
-                  </div>
-
-                  {manualPhone.trim() && (
-                    <div className="rounded-lg border border-zinc-700 bg-black p-4">
-                      <p className="text-sm text-zinc-400">
-                        Manual recipient
-                      </p>
-
-                      <p className="mt-1 text-lg font-semibold">
-                        {manualName.trim() ||
-                          "Unnamed guest"}
-                      </p>
-
-                      <p className="mt-2 text-zinc-300">
-                        {manualPhone}
-                      </p>
-
-                      <p className="mt-3 text-xs text-amber-300">
-                        This sends one SMS without adding the person to your guest database.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-            {recipientMode ===
-              "group" && (
-                <div>
-                  <label
-                    htmlFor="guest-group"
-                    className="mb-2 block text-sm text-zinc-400"
-                  >
-                    Select guest group
-                  </label>
-
-                  <select
-                    id="guest-group"
-                    value={
-                      selectedGroup
-                    }
-                    onChange={(
-                      event
-                    ) => {
                       setSelectedGroup(
-                        event.target
-                          .value
+                        ""
                       );
 
                       setStatus("");
                     }}
-                    disabled={
-                      loadingGuests
-                    }
-                    className="w-full rounded bg-zinc-800 p-4 outline-none ring-blue-600 focus:ring-2 disabled:opacity-50"
+                    className={`rounded-lg border p-4 text-left transition ${recipientMode ===
+                      "individual"
+                      ? "border-blue-500 bg-blue-950/40"
+                      : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
+                      }`}
                   >
-                    <option value="">
-                      Choose a group
-                    </option>
+                    <p className="font-semibold">
+                      One Guest
+                    </p>
 
-                    {groupOptions.map(
-                      (group) => (
-                        <option
-                          key={group}
-                          value={group}
-                        >
-                          {group}
-                        </option>
-                      )
-                    )}
-                  </select>
+                    <p className="mt-1 text-sm text-zinc-400">
+                      Select one person and view their phone number.
+                    </p>
+                  </button>
 
-                  {selectedGroup && (
-                    <div className="mt-4 rounded-lg border border-zinc-700 bg-black p-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-sm text-zinc-400">
-                            Selected group
-                          </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecipientMode(
+                        "manual"
+                      );
 
-                          <p className="mt-1 text-lg font-semibold">
-                            {selectedGroup}
-                          </p>
-                        </div>
+                      setSelectedGuestId(
+                        ""
+                      );
 
-                        <span className="rounded-full bg-blue-950 px-3 py-1 text-sm text-blue-300">
-                          {groupGuests.length} recipients
-                        </span>
-                      </div>
+                      setSelectedGroup(
+                        ""
+                      );
 
-                      {groupGuests.length >
-                        0 ? (
-                        <div className="mt-4 max-h-56 space-y-2 overflow-y-auto">
-                          {groupGuests.map(
-                            (guest) => (
-                              <div
-                                key={
-                                  guest.id
-                                }
-                                className="flex flex-col justify-between gap-1 rounded bg-zinc-900 px-3 py-3 sm:flex-row sm:items-center"
-                              >
-                                <span className="font-medium">
-                                  {guest.name ||
-                                    "Unnamed guest"}
-                                </span>
+                      setStatus("");
+                    }}
+                    className={`rounded-lg border p-4 text-left transition ${recipientMode ===
+                      "manual"
+                      ? "border-blue-500 bg-blue-950/40"
+                      : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
+                      }`}
+                  >
+                    <p className="font-semibold">
+                      Manual Number
+                    </p>
 
-                                <span className="text-sm text-zinc-400">
-                                  {guest.phone}
-                                </span>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      ) : (
-                        <p className="mt-4 text-sm text-amber-300">
-                          No guests in this group have phone numbers.
-                        </p>
-                      )}
-                    </div>
-                  )}
+                    <p className="mt-1 text-sm text-zinc-400">
+                      Enter one guest and phone number manually.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecipientMode(
+                        "group"
+                      );
+
+                      setSelectedGuestId(
+                        ""
+                      );
+
+                      setStatus("");
+                    }}
+                    className={`rounded-lg border p-4 text-left transition ${recipientMode ===
+                      "group"
+                      ? "border-blue-500 bg-blue-950/40"
+                      : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
+                      }`}
+                  >
+                    <p className="font-semibold">
+                      Guest Group
+                    </p>
+
+                    <p className="mt-1 text-sm text-zinc-400">
+                      Send to guests sharing a tag or VIP level.
+                    </p>
+                  </button>
                 </div>
-              )}
-
-            <div>
-              <label
-                htmlFor="sms-template"
-                className="mb-2 block text-sm text-zinc-400"
-              >
-                SMS template
-              </label>
-
-              <select
-                id="sms-template"
-                value={
-                  selectedTemplateId
-                }
-                onChange={(event) =>
-                  applyTemplate(
-                    event.target
-                      .value
-                  )
-                }
-                className="mb-5 w-full rounded bg-zinc-800 p-3 outline-none ring-blue-600 focus:ring-2"
-              >
-                <option value="">
-                  Select a saved template
-                </option>
-
-                {templates.map(
-                  (template) => (
-                    <option
-                      key={
-                        template.id
-                      }
-                      value={String(
-                        template.id
-                      )}
-                    >
-                      {template.campaign ||
-                        template.template_key ||
-                        `Template ${template.id}`}
-                    </option>
-                  )
-                )}
-              </select>
-
-              {templates.length ===
-                0 && (
-                  <p className="mb-5 text-sm text-amber-300">
-                    No active SMS templates were loaded. Check the sms_templates table and its Supabase read policy.
-                  </p>
-                )}
-
-              <label
-                htmlFor="message"
-                className="mb-2 block text-sm text-zinc-400"
-              >
-                SMS message
-              </label>
-
-              <textarea
-                id="message"
-                placeholder="Hi {{name}}, Ora Nights is back this Friday..."
-                value={message}
-                onChange={(event) =>
-                  setMessage(
-                    event.target
-                      .value
-                  )
-                }
-                maxLength={320}
-                className="h-40 w-full rounded bg-zinc-800 p-4 outline-none ring-blue-600 focus:ring-2"
-              />
-
-              <div className="mt-2 flex flex-col gap-2 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
-                <p>
-                  Use {"{{name}}"} to insert each guest&apos;s first name automatically.
-                </p>
-
-                <p>
-                  {message.length}/320
-                </p>
               </div>
 
-              {message.trim() && (
-                <div className="mt-4 rounded-lg border border-zinc-700 bg-black p-4">
-                  <p className="text-xs uppercase tracking-wide text-zinc-500">
-                    Personalized preview
-                  </p>
+              {recipientMode ===
+                "individual" && (
+                  <div>
+                    <label
+                      htmlFor="guest"
+                      className="mb-2 block text-sm text-zinc-400"
+                    >
+                      Select guest
+                    </label>
 
-                  <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-200">
-                    {messagePreview}
-                  </p>
+                    <select
+                      id="guest"
+                      value={
+                        selectedGuestId
+                      }
+                      onChange={(
+                        event
+                      ) => {
+                        setSelectedGuestId(
+                          event.target
+                            .value
+                        );
 
-                  {recipients.length >
-                    1 && (
-                      <p className="mt-3 text-xs text-blue-300">
-                        Each guest will receive this message with their own first name.
-                      </p>
+                        setStatus("");
+                      }}
+                      disabled={
+                        loadingGuests
+                      }
+                      className="w-full rounded bg-zinc-800 p-4 outline-none ring-blue-600 focus:ring-2 disabled:opacity-50"
+                    >
+                      <option value="">
+                        {loadingGuests
+                          ? "Loading guests..."
+                          : "Choose a guest"}
+                      </option>
+
+                      {guests.map(
+                        (guest) => (
+                          <option
+                            key={
+                              guest.id
+                            }
+                            value={
+                              guest.id
+                            }
+                          >
+                            {guest.name ||
+                              "Unnamed guest"}{" "}
+                            —{" "}
+                            {guest.phone ||
+                              "No phone number"}
+                          </option>
+                        )
+                      )}
+                    </select>
+
+                    {selectedGuest && (
+                      <div className="mt-4 rounded-lg border border-zinc-700 bg-black p-4">
+                        <p className="text-sm text-zinc-400">
+                          Selected recipient
+                        </p>
+
+                        <p className="mt-1 text-lg font-semibold">
+                          {selectedGuest.name ||
+                            "Unnamed guest"}
+                        </p>
+
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <p className="text-xs uppercase text-zinc-500">
+                              Phone
+                            </p>
+
+                            <p className="mt-1 text-zinc-200">
+                              {selectedGuest.phone ||
+                                "No phone number"}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs uppercase text-zinc-500">
+                              Group
+                            </p>
+
+                            <p className="mt-1 text-zinc-200">
+                              {selectedGuest.tag ||
+                                selectedGuest.vip_level ||
+                                "No group"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {!selectedGuest.phone && (
+                          <p className="mt-4 rounded bg-red-950/40 p-3 text-sm text-red-300">
+                            Add a phone number to this guest before sending an SMS.
+                          </p>
+                        )}
+                      </div>
                     )}
+                  </div>
+                )}
+
+              {recipientMode ===
+                "manual" && (
+                  <div className="space-y-4">
+                    <div>
+                      <label
+                        htmlFor="manual-name"
+                        className="mb-2 block text-sm text-zinc-400"
+                      >
+                        Guest name
+                      </label>
+
+                      <input
+                        id="manual-name"
+                        type="text"
+                        value={manualName}
+                        onChange={(
+                          event
+                        ) => {
+                          setManualName(
+                            event.target
+                              .value
+                          );
+
+                          setStatus("");
+                        }}
+                        placeholder="Example: John Doe"
+                        className="w-full rounded bg-zinc-800 p-4 outline-none ring-blue-600 focus:ring-2"
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="manual-phone"
+                        className="mb-2 block text-sm text-zinc-400"
+                      >
+                        Phone number
+                      </label>
+
+                      <input
+                        id="manual-phone"
+                        type="tel"
+                        value={
+                          manualPhone
+                        }
+                        onChange={(
+                          event
+                        ) => {
+                          setManualPhone(
+                            event.target
+                              .value
+                          );
+
+                          setStatus("");
+                        }}
+                        placeholder="+1 514 555 1234"
+                        className="w-full rounded bg-zinc-800 p-4 outline-none ring-blue-600 focus:ring-2"
+                      />
+
+                      <p className="mt-2 text-xs text-zinc-500">
+                        Canadian numbers can be entered with or without +1.
+                      </p>
+                    </div>
+
+                    {manualPhone.trim() && (
+                      <div className="rounded-lg border border-zinc-700 bg-black p-4">
+                        <p className="text-sm text-zinc-400">
+                          Manual recipient
+                        </p>
+
+                        <p className="mt-1 text-lg font-semibold">
+                          {manualName.trim() ||
+                            "Unnamed guest"}
+                        </p>
+
+                        <p className="mt-2 text-zinc-300">
+                          {manualPhone}
+                        </p>
+
+                        <p className="mt-3 text-xs text-amber-300">
+                          This sends one SMS without adding the person to your guest database.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              {recipientMode ===
+                "group" && (
+                  <div>
+                    <label
+                      htmlFor="guest-group"
+                      className="mb-2 block text-sm text-zinc-400"
+                    >
+                      Select guest group
+                    </label>
+
+                    <select
+                      id="guest-group"
+                      value={
+                        selectedGroup
+                      }
+                      onChange={(
+                        event
+                      ) => {
+                        setSelectedGroup(
+                          event.target
+                            .value
+                        );
+
+                        setStatus("");
+                      }}
+                      disabled={
+                        loadingGuests
+                      }
+                      className="w-full rounded bg-zinc-800 p-4 outline-none ring-blue-600 focus:ring-2 disabled:opacity-50"
+                    >
+                      <option value="">
+                        Choose a group
+                      </option>
+
+                      {groupOptions.map(
+                        (group) => (
+                          <option
+                            key={group}
+                            value={group}
+                          >
+                            {group}
+                          </option>
+                        )
+                      )}
+                    </select>
+
+                    {selectedGroup && (
+                      <div className="mt-4 rounded-lg border border-zinc-700 bg-black p-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm text-zinc-400">
+                              Selected group
+                            </p>
+
+                            <p className="mt-1 text-lg font-semibold">
+                              {selectedGroup}
+                            </p>
+                          </div>
+
+                          <span className="rounded-full bg-blue-950 px-3 py-1 text-sm text-blue-300">
+                            {groupGuests.length} recipients
+                          </span>
+                        </div>
+
+                        {groupGuests.length >
+                          0 ? (
+                          <div className="mt-4 max-h-56 space-y-2 overflow-y-auto">
+                            {groupGuests.map(
+                              (guest) => (
+                                <div
+                                  key={
+                                    guest.id
+                                  }
+                                  className="flex flex-col justify-between gap-1 rounded bg-zinc-900 px-3 py-3 sm:flex-row sm:items-center"
+                                >
+                                  <span className="font-medium">
+                                    {guest.name ||
+                                      "Unnamed guest"}
+                                  </span>
+
+                                  <span className="text-sm text-zinc-400">
+                                    {guest.phone}
+                                  </span>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        ) : (
+                          <p className="mt-4 text-sm text-amber-300">
+                            No guests in this group have phone numbers.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              <div>
+                <label
+                  htmlFor="sms-template"
+                  className="mb-2 block text-sm text-zinc-400"
+                >
+                  SMS template
+                </label>
+
+                <select
+                  id="sms-template"
+                  value={
+                    selectedTemplateId
+                  }
+                  onChange={(event) =>
+                    applyTemplate(
+                      event.target
+                        .value
+                    )
+                  }
+                  className="mb-5 w-full rounded bg-zinc-800 p-3 outline-none ring-blue-600 focus:ring-2"
+                >
+                  <option value="">
+                    Select a saved template
+                  </option>
+
+                  {templates.map(
+                    (template) => (
+                      <option
+                        key={
+                          template.id
+                        }
+                        value={String(
+                          template.id
+                        )}
+                      >
+                        {template.campaign ||
+                          template.template_key ||
+                          `Template ${template.id}`}
+                      </option>
+                    )
+                  )}
+                </select>
+
+                {templates.length ===
+                  0 && (
+                    <p className="mb-5 text-sm text-amber-300">
+                      No active SMS templates were loaded. Check the sms_templates table and its Supabase read policy.
+                    </p>
+                  )}
+
+                <label
+                  htmlFor="message"
+                  className="mb-2 block text-sm text-zinc-400"
+                >
+                  SMS message
+                </label>
+
+                <textarea
+                  id="message"
+                  placeholder="Hi {{name}}, Ora Nights is back this Friday..."
+                  value={message}
+                  onChange={(event) =>
+                    setMessage(
+                      event.target
+                        .value
+                    )
+                  }
+                  maxLength={320}
+                  className="h-40 w-full rounded bg-zinc-800 p-4 outline-none ring-blue-600 focus:ring-2"
+                />
+
+                <div className="mt-2 flex flex-col gap-2 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
+                  <p>
+                    Use {"{{name}}"} to insert each guest&apos;s first name automatically.
+                  </p>
+
+                  <p>
+                    {message.length}/320
+                  </p>
                 </div>
-              )}
-            </div>
 
-            <button
-              type="button"
-              onClick={sendSMS}
-              disabled={
-                sending ||
-                recipients.length ===
-                0
-              }
-              className="rounded bg-white px-6 py-3 font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {sending
-                ? "Sending..."
-                : recipients.length >
-                  1
-                  ? `Send to ${recipients.length} Guests`
-                  : "Send SMS"}
-            </button>
+                {message.trim() && (
+                  <div className="mt-4 rounded-lg border border-zinc-700 bg-black p-4">
+                    <p className="text-xs uppercase tracking-wide text-zinc-500">
+                      Personalized preview
+                    </p>
 
-            {status && (
-              <p className="rounded-lg bg-zinc-800 p-3 text-sm text-zinc-300">
-                {status}
-              </p>
-            )}
-          </section>
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-200">
+                      {messagePreview}
+                    </p>
 
-          <section className="rounded-xl bg-zinc-900 p-6">
-            <div className="mb-5 flex items-center justify-between gap-4">
-              <h2 className="text-2xl font-bold">
-                Recent SMS History
-              </h2>
+                    {recipients.length >
+                      1 && (
+                        <p className="mt-3 text-xs text-blue-300">
+                          Each guest will receive this message with their own first name.
+                        </p>
+                      )}
+                  </div>
+                )}
+              </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  void loadLogs()
+                onClick={sendSMS}
+                disabled={
+                  sending ||
+                  recipients.length ===
+                  0
                 }
-                className="rounded bg-zinc-800 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700"
+                className="rounded bg-white px-6 py-3 font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Refresh
+                {sending
+                  ? "Sending..."
+                  : recipients.length >
+                    1
+                    ? `Send to ${recipients.length} Guests`
+                    : "Send SMS"}
               </button>
-            </div>
 
-            <div className="max-h-[750px] space-y-4 overflow-y-auto">
-              {logs.map((log) => {
-                const currentStatus =
-                  log.status?.toLowerCase() ||
-                  "unknown";
-
-                const statusClass =
-                  currentStatus ===
-                    "sent" ||
-                    currentStatus ===
-                    "delivered"
-                    ? "text-green-400"
-                    : currentStatus ===
-                      "failed" ||
-                      currentStatus ===
-                      "undelivered"
-                      ? "text-red-400"
-                      : "text-amber-300";
-
-                return (
-                  <article
-                    key={log.id}
-                    className="border-b border-zinc-700 pb-4"
-                  >
-                    <div className="flex justify-between gap-4">
-                      <div>
-                        <strong>
-                          {log.guest_name ||
-                            "Unknown guest"}
-                        </strong>
-
-                        <p className="mt-1 text-sm text-zinc-400">
-                          {log.phone ||
-                            "No phone"}
-                        </p>
-                      </div>
-
-                      <span
-                        className={`capitalize ${statusClass}`}
-                      >
-                        {currentStatus}
-                      </span>
-                    </div>
-
-                    <p className="mt-3 font-medium">
-                      {log.campaign_id ? (
-                        <Link
-                          href={`/sms/campaigns/${log.campaign_id}`}
-                          className="text-blue-300 hover:text-blue-200 hover:underline"
-                        >
-                          {log.campaign || "Untitled campaign"}
-                        </Link>
-                      ) : (
-                        log.campaign || "Untitled campaign"
-                      )}
-                    </p>
-
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {log.audience ||
-                        "Single Guest"}
-                    </p>
-
-                    <p className="mt-3 whitespace-pre-wrap">
-                      {log.message}
-                    </p>
-
-                    {log.error_message && (
-                      <p className="mt-3 rounded bg-red-950/40 p-3 text-sm text-red-300">
-                        {log.error_message}
-                      </p>
-                    )}
-
-                    <p className="mt-3 text-xs text-zinc-500">
-                      {new Date(
-                        log.created_at
-                      ).toLocaleString()}
-                    </p>
-                  </article>
-                );
-              })}
-
-              {logs.length === 0 && (
-                <p className="text-zinc-500">
-                  No SMS history found.
+              {status && (
+                <p className="rounded-lg bg-zinc-800 p-3 text-sm text-zinc-300">
+                  {status}
                 </p>
               )}
-            </div>
-          </section>
-        </div>
-      </main>
-    </div>
+            </section>
+
+            <section className="rounded-xl bg-zinc-900 p-6">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <h2 className="text-2xl font-bold">
+                  Recent SMS History
+                </h2>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void loadLogs()
+                  }
+                  className="rounded bg-zinc-800 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              <div className="max-h-[750px] space-y-4 overflow-y-auto">
+                {logs.map((log) => {
+                  const currentStatus =
+                    log.status?.toLowerCase() ||
+                    "unknown";
+
+                  const statusClass =
+                    currentStatus ===
+                      "sent" ||
+                      currentStatus ===
+                      "delivered"
+                      ? "text-green-400"
+                      : currentStatus ===
+                        "failed" ||
+                        currentStatus ===
+                        "undelivered"
+                        ? "text-red-400"
+                        : "text-amber-300";
+
+                  return (
+                    <article
+                      key={log.id}
+                      className="border-b border-zinc-700 pb-4"
+                    >
+                      <div className="flex justify-between gap-4">
+                        <div>
+                          <strong>
+                            {log.guest_name ||
+                              "Unknown guest"}
+                          </strong>
+
+                          <p className="mt-1 text-sm text-zinc-400">
+                            {log.phone ||
+                              "No phone"}
+                          </p>
+                        </div>
+
+                        <span
+                          className={`capitalize ${statusClass}`}
+                        >
+                          {currentStatus}
+                        </span>
+                      </div>
+
+                      <p className="mt-3 font-medium">
+                        {log.campaign_id ? (
+                          <Link
+                            href={`/sms/campaigns/${log.campaign_id}`}
+                            className="text-blue-300 hover:text-blue-200 hover:underline"
+                          >
+                            {log.campaign || "Untitled campaign"}
+                          </Link>
+                        ) : (
+                          log.campaign || "Untitled campaign"
+                        )}
+                      </p>
+
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {log.audience ||
+                          "Single Guest"}
+                      </p>
+
+                      <p className="mt-3 whitespace-pre-wrap">
+                        {log.message}
+                      </p>
+
+                      {log.error_message && (
+                        <p className="mt-3 rounded bg-red-950/40 p-3 text-sm text-red-300">
+                          {log.error_message}
+                        </p>
+                      )}
+
+                      <p className="mt-3 text-xs text-zinc-500">
+                        {new Date(
+                          log.created_at
+                        ).toLocaleString()}
+                      </p>
+                    </article>
+                  );
+                })}
+
+                {logs.length === 0 && (
+                  <p className="text-zinc-500">
+                    No SMS history found.
+                  </p>
+                )}
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
+    </AdminGuard>
   );
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { createServerClient } from "@supabase/ssr";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +98,8 @@ function getGuest(entry: GuestListEntryRow) {
 export default async function EventPage({
     params,
 }: EventPageProps) {
+    await requireAdmin("/events");
+
     const { id } = await params;
     const eventId = Number(id);
 
@@ -256,8 +259,8 @@ export default async function EventPage({
 
                             <span
                                 className={`rounded-full px-3 py-1 text-xs font-semibold ${event.is_active
-                                        ? "bg-emerald-950 text-emerald-300"
-                                        : "bg-zinc-800 text-zinc-400"
+                                    ? "bg-emerald-950 text-emerald-300"
+                                    : "bg-zinc-800 text-zinc-400"
                                     }`}
                             >
                                 {event.is_active

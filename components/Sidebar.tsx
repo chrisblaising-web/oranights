@@ -2,14 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import {
+    getUserRole,
+    type UserRole,
+} from "@/lib/getUserRole";
 
 type NavItem = {
     href: string;
     label: string;
     icon: string;
     highlight?: "green" | "blue";
+    roles: UserRole[];
 };
 
 const navItems: NavItem[] = [
@@ -17,53 +22,104 @@ const navItems: NavItem[] = [
         href: "/dashboard",
         label: "Dashboard",
         icon: "🏠",
+        roles: ["admin"],
     },
     {
         href: "/events",
         label: "Events",
         icon: "📅",
         highlight: "blue",
+        roles: ["admin"],
     },
     {
         href: "/forms",
         label: "Campaign Forms",
         icon: "📝",
+        roles: ["admin"],
     },
     {
         href: "/host/check-in",
         label: "Check-In & No-Shows",
         icon: "✅",
         highlight: "green",
+        roles: ["admin", "host"],
     },
     {
         href: "/guests",
         label: "Guests",
         icon: "👥",
+        roles: ["admin"],
     },
     {
         href: "/add-guest",
         label: "Add Guest",
         icon: "➕",
+        roles: ["admin"],
     },
     {
         href: "/reservations",
         label: "Reservations",
         icon: "🍽️",
+        roles: ["admin"],
     },
     {
         href: "/sms",
         label: "SMS Campaigns",
         icon: "📲",
+        roles: ["admin"],
     },
 ];
 
 export default function Sidebar() {
     const pathname = usePathname();
 
+    const [role, setRole] =
+        useState<UserRole | null>(null);
+
+    const [roleLoading, setRoleLoading] =
+        useState(true);
+
     const [unreadCount, setUnreadCount] =
         useState(0);
 
+    const visibleNavItems = useMemo(() => {
+        if (!role) {
+            return [];
+        }
+
+        return navItems.filter((item) =>
+            item.roles.includes(role)
+        );
+    }, [role]);
+
+    useEffect(() => {
+        let mounted = true;
+
+        async function loadRole() {
+            const currentRole =
+                await getUserRole();
+
+            if (!mounted) {
+                return;
+            }
+
+            setRole(currentRole);
+            setRoleLoading(false);
+        }
+
+        void loadRole();
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
     async function loadUnreadCount() {
+        if (role !== "admin") {
+            setUnreadCount(0);
+            return;
+        }
+
         const { count, error } = await supabase
             .from("sms_messages")
             .select("id", {
@@ -85,6 +141,10 @@ export default function Sidebar() {
     }
 
     useEffect(() => {
+        if (role !== "admin") {
+            return;
+        }
+
         void loadUnreadCount();
 
         const channel = supabase
@@ -118,7 +178,7 @@ export default function Sidebar() {
                 channel
             );
         };
-    }, []);
+    }, [role]);
 
     function isActive(href: string) {
         return (
@@ -163,43 +223,62 @@ export default function Sidebar() {
                 <p className="mt-1 text-xs uppercase tracking-[0.2em] text-zinc-500">
                     Event Operations
                 </p>
+
+                {!roleLoading && role && (
+                    <p className="mt-3 inline-flex rounded-full border border-white/10 bg-white/5 px-2 py-1 text-xs font-medium capitalize text-zinc-400">
+                        {role}
+                    </p>
+                )}
             </div>
 
             <nav className="space-y-2">
-                {navItems.map((item) => (
+                {roleLoading ? (
+                    <div className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-3 text-sm text-zinc-500">
+                        Loading access...
+                    </div>
+                ) : (
+                    visibleNavItems.map(
+                        (item) => (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className={navClass(
+                                    item
+                                )}
+                            >
+                                <span className="mr-2">
+                                    {item.icon}
+                                </span>
+
+                                {item.label}
+                            </Link>
+                        )
+                    )
+                )}
+
+                {role === "admin" && (
                     <Link
-                        key={item.href}
-                        href={item.href}
-                        className={navClass(item)}
+                        href="/sms/inbox"
+                        className={
+                            isActive("/sms/inbox")
+                                ? "flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-3 font-semibold text-black"
+                                : "flex items-center justify-between gap-3 rounded-xl px-3 py-3 transition hover:bg-white/5 hover:text-white"
+                        }
                     >
-                        <span className="mr-2">
-                            {item.icon}
+                        <span>
+                            💬 Conversations
                         </span>
 
-                        {item.label}
+                        {unreadCount > 0 && (
+                            <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-2 text-xs font-bold text-white">
+                                {unreadCount >
+                                    99
+                                    ? "99+"
+                                    : unreadCount}
+                            </span>
+                        )}
                     </Link>
-                ))}
-
-                <Link
-                    href="/sms/inbox"
-                    className={
-                        isActive("/sms/inbox")
-                            ? "flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-3 font-semibold text-black"
-                            : "flex items-center justify-between gap-3 rounded-xl px-3 py-3 transition hover:bg-white/5 hover:text-white"
-                    }
-                >
-                    <span>
-                        💬 Conversations
-                    </span>
-
-                    {unreadCount > 0 && (
-                        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-2 text-xs font-bold text-white">
-                            {unreadCount > 99
-                                ? "99+"
-                                : unreadCount}
-                        </span>
-                    )}
-                </Link>
+                )}
             </nav>
 
             <div className="mt-auto pt-8">
@@ -209,7 +288,9 @@ export default function Sidebar() {
                     </p>
 
                     <p className="mt-2 text-sm leading-6 text-zinc-300">
-                        Event → Form → Guest List → Reservation → Check-In → No-Show Report
+                        {role === "host"
+                            ? "Guest Search → Check-In → Walk-In → No-Show Report"
+                            : "Event → Form → Guest List → Reservation → Check-In → No-Show Report"}
                     </p>
                 </div>
             </div>

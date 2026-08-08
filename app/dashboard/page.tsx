@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import { supabase } from "@/lib/supabase";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -142,6 +143,7 @@ function isYesReply(message: string | null) {
 }
 
 export default async function DashboardPage() {
+    await requireAdmin("/dashboard");
     const [
         { data: guests, error: guestsError },
         { data: reservations, error: reservationsError },

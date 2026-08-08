@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { createServerClient } from "@supabase/ssr";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +83,8 @@ async function updateEvent(
     formData: FormData
 ) {
     "use server";
+
+    await requireAdmin(`/events/${eventId}/edit`);
 
     const supabase = await getSupabase();
 
@@ -228,6 +231,8 @@ export default async function EditEventPage({
     params,
     searchParams,
 }: EditEventPageProps) {
+    await requireAdmin("/events");
+
     const { id } = await params;
     const query = await searchParams;
 

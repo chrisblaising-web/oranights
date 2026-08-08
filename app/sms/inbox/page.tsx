@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/Sidebar";
+import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 import ChatWindow from "./_components/ChatWindow";
 import ConversationList from "./_components/ConversationList";
@@ -407,114 +408,116 @@ export default function SmsInboxPage() {
   };
 
   return (
-    <div className="flex h-[100dvh] min-h-0 overflow-hidden bg-black text-white">
-      <div className="hidden lg:block">
-        <Sidebar />
-      </div>
-
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <div
-          className={`shrink-0 border-b border-white/10 bg-black/95 px-4 pb-4 pt-[max(16px,env(safe-area-inset-top))] backdrop-blur md:px-8 md:py-5 ${mobileConversationOpen ? "hidden lg:block" : "block"
-            }`}
-        >
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-                <h1 className="truncate text-2xl font-bold md:text-3xl">
-                  Conversations
-                </h1>
-
-                {totalUnread > 0 && (
-                  <span className="shrink-0 rounded-full bg-red-500 px-2.5 py-1 text-[11px] font-bold text-white sm:px-3 sm:text-xs">
-                    {totalUnread} unread
-                  </span>
-                )}
-              </div>
-
-              <p className="mt-1 hidden text-sm text-white/50 sm:block">
-                Manage one-to-one guest conversations from your CRM.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => void loadMessages(true)}
-              className="h-11 shrink-0 rounded-xl border border-white/15 bg-white/5 px-3 text-sm font-medium transition active:scale-[0.98] active:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 lg:hover:bg-white/10"
-            >
-              {loading ? "Refreshing..." : "Refresh"}
-            </button>
-          </div>
+    <AdminGuard>
+      <div className="flex h-[100dvh] min-h-0 overflow-hidden bg-black text-white">
+        <div className="hidden lg:block">
+          <Sidebar />
         </div>
 
-        <div
-          className={`min-h-0 flex-1 ${mobileConversationOpen
-            ? "p-0"
-            : "p-0 lg:p-6"
-            }`}
-        >
-          {notice && (
-            <div
-              className={`mx-3 mt-3 rounded-xl border px-4 py-3 text-sm lg:mx-0 lg:mb-4 lg:mt-0 ${noticeClasses[notice.tone]
-                }`}
-            >
-              {notice.message}
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div
+            className={`shrink-0 border-b border-white/10 bg-black/95 px-4 pb-4 pt-[max(16px,env(safe-area-inset-top))] backdrop-blur md:px-8 md:py-5 ${mobileConversationOpen ? "hidden lg:block" : "block"
+              }`}
+          >
+            <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                  <h1 className="truncate text-2xl font-bold md:text-3xl">
+                    Conversations
+                  </h1>
+
+                  {totalUnread > 0 && (
+                    <span className="shrink-0 rounded-full bg-red-500 px-2.5 py-1 text-[11px] font-bold text-white sm:px-3 sm:text-xs">
+                      {totalUnread} unread
+                    </span>
+                  )}
+                </div>
+
+                <p className="mt-1 hidden text-sm text-white/50 sm:block">
+                  Manage one-to-one guest conversations from your CRM.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => void loadMessages(true)}
+                className="h-11 shrink-0 rounded-xl border border-white/15 bg-white/5 px-3 text-sm font-medium transition active:scale-[0.98] active:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 lg:hover:bg-white/10"
+              >
+                {loading ? "Refreshing..." : "Refresh"}
+              </button>
             </div>
-          )}
+          </div>
 
           <div
-            className={`min-h-0 overflow-hidden bg-white/[0.03] ${notice
-              ? "h-[calc(100%-76px)] lg:h-[calc(100%-68px)]"
-              : "h-full"
-              } lg:rounded-2xl lg:border lg:border-white/10 lg:shadow-2xl`}
+            className={`min-h-0 flex-1 ${mobileConversationOpen
+              ? "p-0"
+              : "p-0 lg:p-6"
+              }`}
           >
-            <div className="grid h-full min-h-0 lg:grid-cols-[360px_minmax(0,1fr)]">
+            {notice && (
               <div
-                className={`min-h-0 ${mobileConversationOpen
-                  ? "hidden lg:block"
-                  : "block"
+                className={`mx-3 mt-3 rounded-xl border px-4 py-3 text-sm lg:mx-0 lg:mb-4 lg:mt-0 ${noticeClasses[notice.tone]
                   }`}
               >
-                <ConversationList
-                  conversations={conversations}
-                  selectedPhone={selectedPhone}
-                  search={search}
-                  loading={loading}
-                  onSearch={setSearch}
-                  onSelect={(phone) =>
-                    void selectConversation(phone)
-                  }
-                />
+                {notice.message}
               </div>
+            )}
 
-              <section
-                className={`${mobileConversationOpen
-                  ? "flex"
-                  : "hidden lg:flex"
-                  } min-h-0 min-w-0 flex-col overflow-hidden`}
-              >
-                <ChatWindow
-                  conversation={selectedConversation}
-                  onBack={() =>
-                    setMobileConversationOpen(false)
-                  }
-                />
-
-                {selectedConversation && (
-                  <ReplyComposer
-                    value={replyMessage}
-                    sending={sending}
-                    onChange={setReplyMessage}
-                    onSend={() =>
-                      void sendReply()
+            <div
+              className={`min-h-0 overflow-hidden bg-white/[0.03] ${notice
+                ? "h-[calc(100%-76px)] lg:h-[calc(100%-68px)]"
+                : "h-full"
+                } lg:rounded-2xl lg:border lg:border-white/10 lg:shadow-2xl`}
+            >
+              <div className="grid h-full min-h-0 lg:grid-cols-[360px_minmax(0,1fr)]">
+                <div
+                  className={`min-h-0 ${mobileConversationOpen
+                    ? "hidden lg:block"
+                    : "block"
+                    }`}
+                >
+                  <ConversationList
+                    conversations={conversations}
+                    selectedPhone={selectedPhone}
+                    search={search}
+                    loading={loading}
+                    onSearch={setSearch}
+                    onSelect={(phone) =>
+                      void selectConversation(phone)
                     }
                   />
-                )}
-              </section>
+                </div>
+
+                <section
+                  className={`${mobileConversationOpen
+                    ? "flex"
+                    : "hidden lg:flex"
+                    } min-h-0 min-w-0 flex-col overflow-hidden`}
+                >
+                  <ChatWindow
+                    conversation={selectedConversation}
+                    onBack={() =>
+                      setMobileConversationOpen(false)
+                    }
+                  />
+
+                  {selectedConversation && (
+                    <ReplyComposer
+                      value={replyMessage}
+                      sending={sending}
+                      onChange={setReplyMessage}
+                      onSend={() =>
+                        void sendReply()
+                      }
+                    />
+                  )}
+                </section>
+              </div>
             </div>
           </div>
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </AdminGuard>
   );
 }

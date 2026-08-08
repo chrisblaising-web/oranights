@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@supabase/ssr";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,8 @@ function cleanText(value: FormDataEntryValue | null, max = 2000) {
 
 async function createEvent(formData: FormData) {
     "use server";
+
+    await requireAdmin("/events/new");
 
     const cookieStore = await cookies();
 
@@ -176,6 +179,8 @@ type NewEventPageProps = {
 export default async function NewEventPage({
     searchParams,
 }: NewEventPageProps) {
+    await requireAdmin("/events/new");
+
     const params = await searchParams;
     const errorMessage = params.error
         ? decodeURIComponent(params.error)

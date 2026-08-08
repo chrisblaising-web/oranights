@@ -4,6 +4,7 @@ import {
   createClient,
   SupabaseClient,
 } from "@supabase/supabase-js";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 type SmsPayload = {
   guestId?: number | null;
@@ -76,14 +77,14 @@ async function requireAuthenticatedUser(
   req: Request
 ): Promise<
   | {
-      success: true;
-      userId: string;
-      email: string | null;
-    }
+    success: true;
+    userId: string;
+    email: string | null;
+  }
   | {
-      success: false;
-      response: NextResponse;
-    }
+    success: false;
+    response: NextResponse;
+  }
 > {
   const authorization =
     req.headers.get("authorization") || "";
@@ -225,6 +226,45 @@ export async function POST(
 
   const authenticatedUserId =
     authentication.userId;
+
+  const adminClient = createSupabaseAdmin();
+
+  if (!adminClient) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Server configuration error.",
+      },
+      { status: 500 }
+    );
+  }
+
+  const { data: profile, error: profileError } =
+    await adminClient
+      .from("user_profiles")
+      .select("role")
+      .eq("id", authenticatedUserId)
+      .single();
+
+  if (profileError) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Unable to verify user permissions.",
+      },
+      { status: 500 }
+    );
+  }
+
+  if (profile?.role !== "admin") {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "You are not authorized to send SMS.",
+      },
+      { status: 403 }
+    );
+  }
 
   let payload: SmsPayload = {};
   let createdLogId: number | null = null;
@@ -439,9 +479,8 @@ export async function POST(
       !pendingLog
     ) {
       throw new Error(
-        `SMS log could not be created: ${
-          pendingLogError?.message ||
-          "Unknown database error"
+        `SMS log could not be created: ${pendingLogError?.message ||
+        "Unknown database error"
         }`
       );
     }
@@ -494,8 +533,8 @@ export async function POST(
         to: phone,
         ...(appBaseUrl
           ? {
-              statusCallback: `${appBaseUrl}/api/twilio/status`,
-            }
+            statusCallback: `${appBaseUrl}/api/twilio/status`,
+          }
           : {}),
       });
 

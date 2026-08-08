@@ -75,6 +75,35 @@ function createSupabaseClient(
   );
 }
 
+
+async function requireAdmin(
+  supabase: ReturnType<typeof createSupabaseClient>
+) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?next=/events");
+  }
+
+  const { data: profile, error: profileError } =
+    await supabase
+      .from("user_profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+  if (
+    profileError ||
+    profile?.role !== "admin"
+  ) {
+    redirect("/host/check-in");
+  }
+
+  return user;
+}
+
 async function setEventActive(formData: FormData) {
   "use server";
 
@@ -95,13 +124,7 @@ async function setEventActive(formData: FormData) {
   const supabase =
     createSupabaseClient(cookieStore);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login?next=/events");
-  }
+  await requireAdmin(supabase);
 
   const { error: deactivateError } =
     await supabase
@@ -162,13 +185,7 @@ async function deactivateEvent(
   const supabase =
     createSupabaseClient(cookieStore);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login?next=/events");
-  }
+  await requireAdmin(supabase);
 
   const { error } = await supabase
     .from("events")
@@ -205,13 +222,7 @@ export default async function EventsPage({
   const supabase =
     createSupabaseClient(cookieStore);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login?next=/events");
-  }
+  await requireAdmin(supabase);
 
   const [
     { data: events, error: eventsError },
@@ -487,8 +498,8 @@ function EventCard({
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={`rounded-full px-3 py-1 text-xs font-semibold ${event.is_active
-                  ? "bg-emerald-500/10 text-emerald-300"
-                  : "bg-zinc-800 text-zinc-400"
+                ? "bg-emerald-500/10 text-emerald-300"
+                : "bg-zinc-800 text-zinc-400"
                 }`}
             >
               {event.is_active

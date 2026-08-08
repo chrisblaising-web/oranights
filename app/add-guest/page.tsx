@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import AdminGuard from "@/components/AdminGuard";
 
 type GuestPurpose =
     | "crm_contact"
@@ -619,341 +620,343 @@ export default function AddGuestPage() {
                     : "border-zinc-800 bg-zinc-900 text-zinc-300";
 
     return (
-        <main className="min-h-screen bg-black p-6 text-white sm:p-10">
-            <div className="mx-auto max-w-xl">
-                <h1 className="text-4xl font-bold">
-                    Add Guest
-                </h1>
+        <AdminGuard>
+            <main className="min-h-screen bg-black p-6 text-white sm:p-10">
+                <div className="mx-auto max-w-xl">
+                    <h1 className="text-4xl font-bold">
+                        Add Guest
+                    </h1>
 
-                <p className="mt-2 text-sm text-zinc-400">
-                    Save a CRM contact, welcome a new client,
-                    or add an event guest.
-                </p>
+                    <p className="mt-2 text-sm text-zinc-400">
+                        Save a CRM contact, welcome a new client,
+                        or add an event guest.
+                    </p>
 
-                <form
-                    onSubmit={handleSubmit}
-                    className="mt-10 space-y-5"
-                >
-                    <div>
-                        <label
-                            htmlFor="name"
-                            className="mb-2 block text-sm font-medium"
-                        >
-                            Name *
-                        </label>
+                    <form
+                        onSubmit={handleSubmit}
+                        className="mt-10 space-y-5"
+                    >
+                        <div>
+                            <label
+                                htmlFor="name"
+                                className="mb-2 block text-sm font-medium"
+                            >
+                                Name *
+                            </label>
 
-                        <input
-                            id="name"
-                            type="text"
-                            value={form.name}
-                            placeholder="Guest name"
-                            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
-                            onChange={(event) =>
-                                updateField(
-                                    "name",
-                                    event.target.value
-                                )
-                            }
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <label
-                            htmlFor="phone"
-                            className="mb-2 block text-sm font-medium"
-                        >
-                            Phone
-                        </label>
-
-                        <input
-                            id="phone"
-                            type="tel"
-                            value={form.phone}
-                            placeholder="+1 514 555 1234"
-                            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
-                            onChange={(event) =>
-                                updateField(
-                                    "phone",
-                                    event.target.value
-                                )
-                            }
-                        />
-
-                        <p className="mt-2 text-xs text-zinc-500">
-                            Automatic SMS requires international
-                            format, for example +15145551234.
-                        </p>
-                    </div>
-
-                    <div>
-                        <label
-                            htmlFor="email"
-                            className="mb-2 block text-sm font-medium"
-                        >
-                            Email
-                        </label>
-
-                        <input
-                            id="email"
-                            type="email"
-                            value={form.email}
-                            placeholder="guest@email.com"
-                            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
-                            onChange={(event) =>
-                                updateField(
-                                    "email",
-                                    event.target.value
-                                )
-                            }
-                        />
-                    </div>
-
-                    <div>
-                        <label
-                            htmlFor="instagram"
-                            className="mb-2 block text-sm font-medium"
-                        >
-                            Instagram
-                        </label>
-
-                        <input
-                            id="instagram"
-                            type="text"
-                            value={form.instagram}
-                            placeholder="@username"
-                            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
-                            onChange={(event) =>
-                                updateField(
-                                    "instagram",
-                                    event.target.value
-                                )
-                            }
-                        />
-                    </div>
-
-                    <div>
-                        <label
-                            htmlFor="gender"
-                            className="mb-2 block text-sm font-medium"
-                        >
-                            Gender *
-                        </label>
-
-                        <select
-                            id="gender"
-                            value={form.gender}
-                            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
-                            onChange={(event) =>
-                                updateField(
-                                    "gender",
-                                    event.target.value
-                                )
-                            }
-                            required
-                        >
-                            <option value="">
-                                Select Gender
-                            </option>
-                            <option value="Male">
-                                Male
-                            </option>
-                            <option value="Female">
-                                Female
-                            </option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label
-                            htmlFor="vip_level"
-                            className="mb-2 block text-sm font-medium"
-                        >
-                            VIP Level
-                        </label>
-
-                        <select
-                            id="vip_level"
-                            value={form.vip_level}
-                            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
-                            onChange={(event) =>
-                                updateField(
-                                    "vip_level",
-                                    event.target.value
-                                )
-                            }
-                        >
-                            <option value="Regular">
-                                Regular
-                            </option>
-                            <option value="VIP">
-                                VIP
-                            </option>
-                            <option value="BLACK">
-                                BLACK
-                            </option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label
-                            htmlFor="tag"
-                            className="mb-2 block text-sm font-medium"
-                        >
-                            Tag
-                        </label>
-
-                        <select
-                            id="tag"
-                            value={form.tag}
-                            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
-                            onChange={(event) =>
-                                updateField(
-                                    "tag",
-                                    event.target.value
-                                )
-                            }
-                        >
-                            <option value="Regular">
-                                Regular
-                            </option>
-                            <option value="VIP">
-                                VIP
-                            </option>
-                            <option value="BLACK">
-                                BLACK
-                            </option>
-                            <option value="Influencer">
-                                Influencer
-                            </option>
-                            <option value="Birthday">
-                                Birthday
-                            </option>
-                            <option value="Artist">
-                                Artist
-                            </option>
-                            <option value="Promoter">
-                                Promoter
-                            </option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label
-                            htmlFor="guest_purpose"
-                            className="mb-2 block text-sm font-medium"
-                        >
-                            Guest Purpose *
-                        </label>
-
-                        <select
-                            id="guest_purpose"
-                            value={form.guest_purpose}
-                            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
-                            onChange={(event) =>
-                                updateGuestPurpose(
-                                    event.target
-                                        .value as GuestPurpose
-                                )
-                            }
-                        >
-                            <option value="crm_contact">
-                                CRM Contact Only — Save without SMS
-                            </option>
-                            <option value="new_client">
-                                New Client — Welcome SMS
-                            </option>
-                            <option value="event_guest">
-                                Event Guest — Invitation SMS
-                            </option>
-                        </select>
-                    </div>
-
-                    <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-                        <div className="flex items-center justify-between gap-4">
-                            <div>
-                                <p className="font-medium">
-                                    Send Automatic SMS
-                                </p>
-                                <p className="mt-1 text-xs text-zinc-400">
-                                    The selected automation and
-                                    template must also be active.
-                                </p>
-                            </div>
-
-                            <button
-                                type="button"
-                                role="switch"
-                                aria-checked={
-                                    form.automatic_sms_enabled
-                                }
-                                disabled={
-                                    form.guest_purpose ===
-                                    "crm_contact"
-                                }
-                                onClick={() =>
+                            <input
+                                id="name"
+                                type="text"
+                                value={form.name}
+                                placeholder="Guest name"
+                                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
+                                onChange={(event) =>
                                     updateField(
-                                        "automatic_sms_enabled",
-                                        !form.automatic_sms_enabled
+                                        "name",
+                                        event.target.value
                                     )
                                 }
-                                className={`relative h-7 w-12 rounded-full transition ${form.automatic_sms_enabled
-                                    ? "bg-green-500"
-                                    : "bg-zinc-700"
-                                    } disabled:cursor-not-allowed disabled:opacity-40`}
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="phone"
+                                className="mb-2 block text-sm font-medium"
                             >
-                                <span
-                                    className={`absolute top-1 h-5 w-5 rounded-full bg-white transition ${form.automatic_sms_enabled
-                                        ? "left-6"
-                                        : "left-1"
-                                        }`}
-                                />
-                            </button>
+                                Phone
+                            </label>
+
+                            <input
+                                id="phone"
+                                type="tel"
+                                value={form.phone}
+                                placeholder="+1 514 555 1234"
+                                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
+                                onChange={(event) =>
+                                    updateField(
+                                        "phone",
+                                        event.target.value
+                                    )
+                                }
+                            />
+
+                            <p className="mt-2 text-xs text-zinc-500">
+                                Automatic SMS requires international
+                                format, for example +15145551234.
+                            </p>
                         </div>
-                    </div>
 
-                    <div>
-                        <label
-                            htmlFor="notes"
-                            className="mb-2 block text-sm font-medium"
-                        >
-                            Notes
-                        </label>
+                        <div>
+                            <label
+                                htmlFor="email"
+                                className="mb-2 block text-sm font-medium"
+                            >
+                                Email
+                            </label>
 
-                        <textarea
-                            id="notes"
-                            value={form.notes}
-                            placeholder="Notes about this guest"
-                            rows={4}
-                            className="w-full resize-none rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
-                            onChange={(event) =>
-                                updateField(
-                                    "notes",
-                                    event.target.value
-                                )
-                            }
-                        />
-                    </div>
-
-                    {status && (
-                        <div
-                            className={`rounded-lg border p-4 text-sm ${statusClasses}`}
-                        >
-                            {status}
+                            <input
+                                id="email"
+                                type="email"
+                                value={form.email}
+                                placeholder="guest@email.com"
+                                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
+                                onChange={(event) =>
+                                    updateField(
+                                        "email",
+                                        event.target.value
+                                    )
+                                }
+                            />
                         </div>
-                    )}
 
-                    <button
-                        type="submit"
-                        disabled={saving}
-                        className="w-full rounded-lg bg-white px-6 py-3 font-bold text-black hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        {saving
-                            ? "Saving Guest..."
-                            : "Save Guest"}
-                    </button>
-                </form>
-            </div>
-        </main>
+                        <div>
+                            <label
+                                htmlFor="instagram"
+                                className="mb-2 block text-sm font-medium"
+                            >
+                                Instagram
+                            </label>
+
+                            <input
+                                id="instagram"
+                                type="text"
+                                value={form.instagram}
+                                placeholder="@username"
+                                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
+                                onChange={(event) =>
+                                    updateField(
+                                        "instagram",
+                                        event.target.value
+                                    )
+                                }
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="gender"
+                                className="mb-2 block text-sm font-medium"
+                            >
+                                Gender *
+                            </label>
+
+                            <select
+                                id="gender"
+                                value={form.gender}
+                                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
+                                onChange={(event) =>
+                                    updateField(
+                                        "gender",
+                                        event.target.value
+                                    )
+                                }
+                                required
+                            >
+                                <option value="">
+                                    Select Gender
+                                </option>
+                                <option value="Male">
+                                    Male
+                                </option>
+                                <option value="Female">
+                                    Female
+                                </option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="vip_level"
+                                className="mb-2 block text-sm font-medium"
+                            >
+                                VIP Level
+                            </label>
+
+                            <select
+                                id="vip_level"
+                                value={form.vip_level}
+                                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
+                                onChange={(event) =>
+                                    updateField(
+                                        "vip_level",
+                                        event.target.value
+                                    )
+                                }
+                            >
+                                <option value="Regular">
+                                    Regular
+                                </option>
+                                <option value="VIP">
+                                    VIP
+                                </option>
+                                <option value="BLACK">
+                                    BLACK
+                                </option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="tag"
+                                className="mb-2 block text-sm font-medium"
+                            >
+                                Tag
+                            </label>
+
+                            <select
+                                id="tag"
+                                value={form.tag}
+                                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
+                                onChange={(event) =>
+                                    updateField(
+                                        "tag",
+                                        event.target.value
+                                    )
+                                }
+                            >
+                                <option value="Regular">
+                                    Regular
+                                </option>
+                                <option value="VIP">
+                                    VIP
+                                </option>
+                                <option value="BLACK">
+                                    BLACK
+                                </option>
+                                <option value="Influencer">
+                                    Influencer
+                                </option>
+                                <option value="Birthday">
+                                    Birthday
+                                </option>
+                                <option value="Artist">
+                                    Artist
+                                </option>
+                                <option value="Promoter">
+                                    Promoter
+                                </option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="guest_purpose"
+                                className="mb-2 block text-sm font-medium"
+                            >
+                                Guest Purpose *
+                            </label>
+
+                            <select
+                                id="guest_purpose"
+                                value={form.guest_purpose}
+                                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
+                                onChange={(event) =>
+                                    updateGuestPurpose(
+                                        event.target
+                                            .value as GuestPurpose
+                                    )
+                                }
+                            >
+                                <option value="crm_contact">
+                                    CRM Contact Only — Save without SMS
+                                </option>
+                                <option value="new_client">
+                                    New Client — Welcome SMS
+                                </option>
+                                <option value="event_guest">
+                                    Event Guest — Invitation SMS
+                                </option>
+                            </select>
+                        </div>
+
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+                            <div className="flex items-center justify-between gap-4">
+                                <div>
+                                    <p className="font-medium">
+                                        Send Automatic SMS
+                                    </p>
+                                    <p className="mt-1 text-xs text-zinc-400">
+                                        The selected automation and
+                                        template must also be active.
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={
+                                        form.automatic_sms_enabled
+                                    }
+                                    disabled={
+                                        form.guest_purpose ===
+                                        "crm_contact"
+                                    }
+                                    onClick={() =>
+                                        updateField(
+                                            "automatic_sms_enabled",
+                                            !form.automatic_sms_enabled
+                                        )
+                                    }
+                                    className={`relative h-7 w-12 rounded-full transition ${form.automatic_sms_enabled
+                                        ? "bg-green-500"
+                                        : "bg-zinc-700"
+                                        } disabled:cursor-not-allowed disabled:opacity-40`}
+                                >
+                                    <span
+                                        className={`absolute top-1 h-5 w-5 rounded-full bg-white transition ${form.automatic_sms_enabled
+                                            ? "left-6"
+                                            : "left-1"
+                                            }`}
+                                    />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="notes"
+                                className="mb-2 block text-sm font-medium"
+                            >
+                                Notes
+                            </label>
+
+                            <textarea
+                                id="notes"
+                                value={form.notes}
+                                placeholder="Notes about this guest"
+                                rows={4}
+                                className="w-full resize-none rounded-lg border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-white"
+                                onChange={(event) =>
+                                    updateField(
+                                        "notes",
+                                        event.target.value
+                                    )
+                                }
+                            />
+                        </div>
+
+                        {status && (
+                            <div
+                                className={`rounded-lg border p-4 text-sm ${statusClasses}`}
+                            >
+                                {status}
+                            </div>
+                        )}
+
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="w-full rounded-lg bg-white px-6 py-3 font-bold text-black hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {saving
+                                ? "Saving Guest..."
+                                : "Save Guest"}
+                        </button>
+                    </form>
+                </div>
+            </main>
+        </AdminGuard>
     );
 }

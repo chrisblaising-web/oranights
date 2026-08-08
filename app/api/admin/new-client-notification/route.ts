@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import twilio from "twilio";
+import { createClient } from "@supabase/supabase-js";
 
 type NotificationPayload = {
   name?: string;
@@ -13,6 +14,124 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
+    const authorization =
+      request.headers.get("authorization") || "";
+
+    if (!authorization.startsWith("Bearer ")) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Authentication is required.",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
+    const accessToken = authorization
+      .slice("Bearer ".length)
+      .trim();
+
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+    const supabaseAnonKey =
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    const serviceRoleKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (
+      !supabaseUrl ||
+      !supabaseAnonKey ||
+      !serviceRoleKey
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Supabase authentication is not configured.",
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    const authClient = createClient(
+      supabaseUrl,
+      supabaseAnonKey,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      }
+    );
+
+    const {
+      data: { user },
+      error: userError,
+    } = await authClient.auth.getUser(accessToken);
+
+    if (userError || !user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Your session is invalid or has expired. Please log in again.",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
+    const adminClient = createClient(
+      supabaseUrl,
+      serviceRoleKey,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      }
+    );
+
+    const {
+      data: profile,
+      error: profileError,
+    } = await adminClient
+      .from("user_profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Unable to verify user permissions.",
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    if (profile?.role !== "admin") {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "You are not authorized to send admin notifications.",
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
     const payload =
       (await request.json()) as NotificationPayload;
 
